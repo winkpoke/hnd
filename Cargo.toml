@@ -1,0 +1,8 @@
+[package]
+name = "hnd"
+version = "0.1.0"
+authors = ["Phil Chen <winkpoke@yahoo.com>"]
+edition = "2018"
+
+[dependencies]
+structopt = "0.2.18"
