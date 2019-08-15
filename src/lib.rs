@@ -1,6 +1,11 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 
+use std::convert::TryInto;
+use std::fs::File;
+use std::io;
+
+
 #[derive(Default, Debug)]
 pub struct hnd_header_t {
     sFileType: String, //[u8; 32],
@@ -69,13 +74,6 @@ pub struct hnd_header_raw_t {
     data: Box<[u8; 1024]>,
 }
 
-use std::convert::From;
-use std::convert::TryFrom;
-use std::convert::TryInto;
-use std::fs::File;
-use std::io;
-use std::mem;
-
 fn display_header(h: &hnd_header_t) {
     println!("{}", h.sFileType);
     println!("{}", h.FileLength);
@@ -91,7 +89,7 @@ pub fn read_header_to_raw(f: &File) -> Result<Box<hnd_header_raw_t>, io::Error> 
 
     let mut reader = BufReader::new(f);
     let mut buf = Box::new([0; 1024]);
-    let mut n: usize = reader.read(&mut (*buf)[..1024])?;
+    let n: usize = reader.read(&mut (*buf)[..1024])?;
     println!("DEBUG: read in {} bytes in total.", n);
     return Ok(Box::new(hnd_header_raw_t { data: buf }));
 }
@@ -116,7 +114,6 @@ fn parse_string(buf: &[u8], pos: &mut usize, len: usize) -> String {
 
 pub fn parse_raw_data(raw: &hnd_header_raw_t) -> Result<Box<hnd_header_t>, io::Error> {
     let mut pos: usize = 0;
-    let n: usize = 0;
     let header = Box::new(hnd_header_t {
         sFileType: { parse_string(&*raw.data, &mut pos, 32) },
         FileLength: { parse_u32(&*raw.data, &mut pos) },
@@ -182,12 +179,17 @@ pub fn parse_raw_data(raw: &hnd_header_raw_t) -> Result<Box<hnd_header_t>, io::E
     Ok(header)
 }
 
-pub fn read_header(f: &mut File) -> Result<Box<hnd_header_t>, io::Error> {
-    //hnd_header_t {
-    use std::io::{BufReader, Read};
+pub fn print_header(f: &mut File) -> Result<(), io::Error> {
     let raw = read_header_to_raw(f)?;
     let hnd_head = parse_raw_data(&raw)?;
-    // display_header(&hnd_head);
+    println!("DEBUG: {:?}", hnd_head);
+
+    Ok(())
+}
+
+pub fn read_header(f: &mut File) -> Result<Box<hnd_header_t>, io::Error> {
+    let raw = read_header_to_raw(f)?;
+    let hnd_head = parse_raw_data(&raw)?;
     println!("DEBUG: {:?}", hnd_head);
 
     Ok(hnd_head)
