@@ -194,3 +194,22 @@ pub fn read_header(f: &mut File) -> Result<Box<hnd_header_t>, io::Error> {
 
     Ok(hnd_head)
 }
+
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, 4);
+    }
+    #[test]
+    fn test_read_header() {
+        use std::fs::File;
+        let test_file_1 = String::from("test.hnd");
+        let mut f = File::open(test_file_1).unwrap();
+        let header = crate::read_header(&mut f).unwrap();
+        //assert_eq!(header.sFileType, "VARIAN_VA_INTERNAL_HND_1.0");
+        assert_eq!(header.sCreationDate, "20190610");
+    }
+
+}
