@@ -11,6 +11,7 @@ pub struct hnd_header_t {
     sCreationTime: String, //[u8; 8],
     sPatientID: String,    //[u8; 16],
     nPatientSer: u32,
+    sSeriesID: String, //[u8; 16],
     nSeriesSer: u32,
     sSliceID: String, //[u8; 16],
     nSliceSer: u32,
@@ -98,7 +99,13 @@ pub fn read_header_to_raw(f: &File) -> Result<Box<hnd_header_raw_t>, io::Error> 
 fn parse_u32(buf: &[u8], pos: &mut usize) -> u32 {
     let (start, end) = (*pos, *pos + 4);
     *pos += 4;
-    u32::from_le_bytes(buf[start..end].try_into().unwrap())
+    u32::from_ne_bytes(buf[start..end].try_into().unwrap())
+}
+
+fn parse_f64(buf: &[u8], pos: &mut usize) -> f64 {
+    let (start, end) = (*pos, *pos + 8);
+    *pos += 8;
+    f64::from_bits(u64::from_ne_bytes(buf[start..end].try_into().unwrap()))
 }
 
 fn parse_string(buf: &[u8], pos: &mut usize, len: usize) -> String {
@@ -117,7 +124,60 @@ pub fn parse_raw_data(raw: &hnd_header_raw_t) -> Result<Box<hnd_header_t>, io::E
         nCheckSum: { parse_u32(&*raw.data, &mut pos) },
         sCreationDate: { parse_string(&*raw.data, &mut pos, 8) },
         sCreationTime: { parse_string(&*raw.data, &mut pos, 8) },
-        ..hnd_header_t::default()
+        sPatientID: { parse_string(&*raw.data, &mut pos, 16) },
+        nPatientSer: { parse_u32(&*raw.data, &mut pos) },
+        sSeriesID: { parse_string(&*raw.data, &mut pos, 16) },
+        nSeriesSer: { parse_u32(&*raw.data, &mut pos) },
+        sSliceID: { parse_string(&*raw.data, &mut pos, 16) },
+        nSliceSer: { parse_u32(&*raw.data, &mut pos) },
+        SizeX: { parse_u32(&*raw.data, &mut pos) },
+        SizeY: { parse_u32(&*raw.data, &mut pos) },
+        dSliceZPos: { parse_f64(&*raw.data, &mut pos) },
+        sModality: { parse_string(&*raw.data, &mut pos, 16) },
+        nWindow: { parse_u32(&*raw.data, &mut pos) },
+        nLevel: { parse_u32(&*raw.data, &mut pos) },
+        nPixelOffset: { parse_u32(&*raw.data, &mut pos) },
+        sImageType: { parse_string(&*raw.data, &mut pos, 4) },
+        dGantryRtn: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dSAD: { parse_f64(&*raw.data, &mut pos) },       //f64,
+        dSFD: { parse_f64(&*raw.data, &mut pos) },       //f64,
+        dCollX1: { parse_f64(&*raw.data, &mut pos) },    //f64,
+        dCollX2: { parse_f64(&*raw.data, &mut pos) },    //f64,
+        dCollY1: { parse_f64(&*raw.data, &mut pos) },    //f64,
+        dCollY2: { parse_f64(&*raw.data, &mut pos) },    //f64,
+        dCollRtn: { parse_f64(&*raw.data, &mut pos) },   //f64,
+        dFieldX: { parse_f64(&*raw.data, &mut pos) },    //f64,
+        dFieldY: { parse_f64(&*raw.data, &mut pos) },    //f64,
+        dBladeX1: { parse_f64(&*raw.data, &mut pos) },   //f64,
+        dBladeX2: { parse_f64(&*raw.data, &mut pos) },   //f64,
+        dBladeY1: { parse_f64(&*raw.data, &mut pos) },   //f64,
+        dBladeY2: { parse_f64(&*raw.data, &mut pos) },   //f64,
+        dIDUPosLng: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dIDUPosLat: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dIDUPosVrt: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dIDUPosRtn: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dPatientSupportAngle: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dTableTopEccentricAngle: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dCouchVrt: { parse_f64(&*raw.data, &mut pos) },  //f64,
+        dCouchLng: { parse_f64(&*raw.data, &mut pos) },  //f64,
+        dCouchLat: { parse_f64(&*raw.data, &mut pos) },  //f64,
+        dIDUResolutionX: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dIDUResolutionY: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dImageResolutionX: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dImageResolutionY: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dEnergy: { parse_f64(&*raw.data, &mut pos) },    //f64,
+        dDoseRate: { parse_f64(&*raw.data, &mut pos) },  //f64,
+        dXRayKV: { parse_f64(&*raw.data, &mut pos) },    //f64,
+        dXRayMA: { parse_f64(&*raw.data, &mut pos) },    //f64,
+        dMetersetExposure: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dAcqAdjustment: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dCTProjectionAngle: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dCTNormChamber: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dGatingTimeTag: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dGating4DInfoX: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dGating4DInfoY: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dGating4DInfoZ: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        dGating4DInfoTime: { parse_f64(&*raw.data, &mut pos) }, //f64,
     });
     Ok(header)
 }
