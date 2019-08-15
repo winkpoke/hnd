@@ -1,0 +1,108 @@
+use std::convert::TryInto;
+
+#![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
+
+#[repr(packed)]
+struct hnd_header_t {
+    sFileType: [u8; 32],
+    FileLength: u32,
+    chasChecksumSpec: [u8; 4],
+    nCheckSum: u32,
+    sCreationDate: [u8; 8],
+    sCreationTime: [u8; 8],
+    sPatientID: [u8; 16],
+    nPatientSer: u32,
+    sSeriesID: [u8; 16],
+    nSeriesSer: u32,
+    sSliceID: [u8; 16],
+    nSliceSer: u32,
+    SizeX: u32,
+    SizeY: u32,
+    dSliceZPos: f64,
+    sModality: [u8; 16],
+    nWindow: u32,
+    nLevel: u32,
+    nPixelOffset: u32,
+    sImageType: [u8; 4],
+    dGantryRtn: f64,
+    dSAD: f64,
+    dSFD: f64,
+    dCollX1: f64,
+    dCollX2: f64,
+    dCollY1: f64,
+    dCollY2: f64,
+    dCollRtn: f64,
+    dFieldX: f64,
+    dFieldY: f64,
+    dBladeX1: f64,
+    dBladeX2: f64,
+    dBladeY1: f64,
+    dBladeY2: f64,
+    dIDUPosLng: f64,
+    dIDUPosLat: f64,
+    dIDUPosVrt: f64,
+    dIDUPosRtn: f64,
+    dPatientSupportAngle: f64,
+    dTableTopEccentricAngle: f64,
+    dCouchVrt: f64,
+    dCouchLng: f64,
+    dCouchLat: f64,
+    dIDUResolutionX: f64,
+    dIDUResolutionY: f64,
+    dImageResolutionX: f64,
+    dImageResolutionY: f64,
+    dEnergy: f64,
+    dDoseRate: f64,
+    dXRayKV: f64,
+    dXRayMA: f64,
+    dMetersetExposure: f64,
+    dAcqAdjustment: f64,
+    dCTProjectionAngle: f64,
+    dCTNormChamber: f64,
+    dGatingTimeTag: f64,
+    dGating4DInfoX: f64,
+    dGating4DInfoY: f64,
+    dGating4DInfoZ: f64,
+    dGating4DInfoTime: f64,
+}
+
+use std::fs::File;
+use std::io;
+
+pub fn read_header(f: &mut File) -> io::Result<()> {
+    //hnd_header_t {
+    use std::io::{BufReader, Read};
+
+    const BUF_LEN: usize = 32 * mem::size_of::<u8>();
+    //const BUF_LEN: usize = 1024;
+
+    let mut reader = BufReader::new(f);
+    let mut buf_str: [u8; BUF_LEN] = [0; BUF_LEN];
+    let mut buf: [u8; 1024] = [0; 1024];
+    let mut n: usize = 0;
+    n += reader.read(&mut buf[..32])?;
+    println!("{}", std::str::from_utf8(&buf[..32]).unwrap());
+    n += reader.read(&mut buf[..4])?;
+    println!("{}", u32::from_le_bytes(buf[..4].try_into().unwrap()));
+
+    use std::mem;
+    // let p: *mut hnd_header_t;
+    //n = reader.read(&mut buf_str)?;
+    //let p: *const hnd_header_t = unsafe { mem::transmute(&buf_str) };
+    //let h: hnd_header_t = unsafe { mem::transmute(buf_str) };
+    unsafe {
+        //println!("{}", std::str::from_utf8(&(*p).sFileType).unwrap());
+        //println!("{}", std::str::from_utf8(&h.sFileType).unwrap());
+    };
+    let p = &buf_str as &[u8] as *const [u8] as *const hnd_header_t;
+    unsafe {
+        n = reader.read(&mut buf_str)?;
+        //let p: *const hnd_header_t = s;
+        println!("{}", std::str::from_utf8(&(*p).sFileType).unwrap());
+        println!("{}", &(*p).FileLength);
+        println!("{}", &(*p).dIDUResolutionX);
+    }
+
+    Ok(())
+}
