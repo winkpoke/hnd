@@ -204,10 +204,11 @@ mod tests {
     fn it_works() {
         assert_eq!(2 + 2, 4);
     }
+
     #[test]
     fn test_read_header() {
         use std::fs::File;
-        let test_file_1 = String::from("test.hnd");
+        let test_file_1 = String::from("test/test_data_1.hnd");
         let mut f = File::open(test_file_1).unwrap();
         let header = crate::read_header(&mut f).unwrap();
         assert_eq!(header.sFileType, "VARIAN_VA_INTERNAL_HND_1.0");
@@ -216,5 +217,6 @@ mod tests {
         assert_eq!(header.SizeX, 1024);
         assert_eq!(header.SizeY, 768);
         assert_eq!(header.dCTProjectionAngle, -71.01111111111112);
+        assert_eq!(header.dCTNormChamber, 1164.0);
     }
 }
