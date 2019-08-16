@@ -5,7 +5,6 @@ use std::convert::TryInto;
 use std::fs::File;
 use std::io;
 
-
 #[derive(Default, Debug)]
 pub struct hnd_header_t {
     sFileType: String, //[u8; 32],
@@ -74,6 +73,7 @@ pub struct hnd_header_raw_t {
     data: Box<[u8; 1024]>,
 }
 
+/*
 fn display_header(h: &hnd_header_t) {
     println!("{}", h.sFileType);
     println!("{}", h.FileLength);
@@ -83,7 +83,7 @@ fn display_header(h: &hnd_header_t) {
     println!("{}", h.sCreationTime);
     println!("{}", h.sPatientID);
 }
-
+*/
 pub fn read_header_to_raw(f: &File) -> Result<Box<hnd_header_raw_t>, io::Error> {
     use std::io::{BufReader, Read};
 
@@ -195,7 +195,6 @@ pub fn read_header(f: &mut File) -> Result<Box<hnd_header_t>, io::Error> {
     Ok(hnd_head)
 }
 
-
 #[cfg(test)]
 mod tests {
     #[test]
@@ -211,5 +210,4 @@ mod tests {
         //assert_eq!(header.sFileType, "VARIAN_VA_INTERNAL_HND_1.0");
         assert_eq!(header.sCreationDate, "20190610");
     }
-
 }

@@ -1,10 +1,7 @@
 use std::env;
 use std::error::Error;
-use std::fs;
 use std::fs::File;
-use std::io::BufReader;
-use std::io::Read;
-
+// use std::io::{BufReader, Read};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<_> = env::args().collect();
@@ -15,7 +12,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut f = File::open(&args[1])?;
     let metadata = f.metadata()?;
     println!("{:?}", metadata.file_type());
-    hnd::print_header(&mut f);
+    hnd::print_header(&mut f)?;
 
     Ok(())
 }
