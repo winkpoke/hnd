@@ -5,4 +5,5 @@ authors = ["Phil Chen <winkpoke@yahoo.com>"]
 edition = "2018"
 
 [dependencies]
-structopt = "0.2.18"
+#structopt = "0.2.18"
+clap = "2.33.0"
