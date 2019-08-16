@@ -109,7 +109,10 @@ fn parse_f64(buf: &[u8], pos: &mut usize) -> f64 {
 fn parse_string(buf: &[u8], pos: &mut usize, len: usize) -> String {
     let (start, end) = (*pos, *pos + len);
     *pos += len;
-    std::str::from_utf8(&buf[start..end]).unwrap().to_string()
+    std::str::from_utf8(&buf[start..end])
+        .unwrap()
+        .trim_end_matches('\u{0}')
+        .to_string()
 }
 
 pub fn parse_raw_data(raw: &hnd_header_raw_t) -> Result<Box<hnd_header_t>, io::Error> {
@@ -207,7 +210,11 @@ mod tests {
         let test_file_1 = String::from("test.hnd");
         let mut f = File::open(test_file_1).unwrap();
         let header = crate::read_header(&mut f).unwrap();
-        //assert_eq!(header.sFileType, "VARIAN_VA_INTERNAL_HND_1.0");
+        assert_eq!(header.sFileType, "VARIAN_VA_INTERNAL_HND_1.0");
         assert_eq!(header.sCreationDate, "20190610");
+        assert_eq!(header.FileLength, 3146752);
+        assert_eq!(header.SizeX, 1024);
+        assert_eq!(header.SizeY, 768);
+        assert_eq!(header.dCTProjectionAngle, -71.01111111111112);
     }
 }
