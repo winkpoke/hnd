@@ -73,6 +73,74 @@ pub struct hnd_header_raw_t {
     data: Box<[u8; 1024]>,
 }
 
+impl std::fmt::Display for hnd_header_t {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "File Type:\t{}", self.sFileType)?;
+        writeln!(f, "File Length:\t{}", self.FileLength)?;
+        writeln!(f, "chasChecksumSpec:\t{}", self.chasChecksumSpec)?;
+        writeln!(f, "Check Sum:\t{}", self.nCheckSum)?;
+        writeln!(f, "Creation Date:\t{}", self.sCreationDate)?;
+        writeln!(f, "Creation Time:\t{}", self.sCreationTime)?;
+        writeln!(f, "Patient ID:\t{}", self.sPatientID)?;
+        writeln!(f, "Patient Ser:\t{}", self.nPatientSer)?;
+        writeln!(f, "Series ID:\t{}", self.sSeriesID)?;
+        writeln!(f, "Series Ser:\t{}", self.nSeriesSer)?;
+        writeln!(f, "Slice ID:\t{}", self.sSliceID)?;
+        writeln!(f, "Slice Ser:\t{}", self.nSliceSer)?;
+        writeln!(f, "SizeX:\t{}", self.SizeX)?;
+        writeln!(f, "SizeY:\t{}", self.SizeY)?;
+
+        writeln!(f, "dSliceZPos:\t{:e}", self.dSliceZPos)?;
+        writeln!(f, "sModality:\t{}", self.sModality)?;
+        writeln!(f, "nWindow:\t{}", self.nWindow)?;
+        writeln!(f, "nLevel:\t{}", self.nLevel)?;
+        writeln!(f, "nPixelOffset:\t{}", self.nPixelOffset)?;
+        writeln!(f, "sImageType:\t{}", self.sImageType)?;
+        writeln!(f, "dGantryRtn:\t{}", self.dGantryRtn)?;
+        writeln!(f, "dSAD:\t{}", self.dSAD)?;
+        writeln!(f, "dSFD:\t{}", self.dSFD)?;
+        writeln!(f, "dCollX1:\t{}", self.dCollX1)?;
+        writeln!(f, "dCollX2:\t{}", self.dCollX2)?;
+        writeln!(f, "dCollY1:\t{}", self.dCollY1)?;
+        writeln!(f, "dCollY2:\t{}", self.dCollY2)?;
+        writeln!(f, "dCollRtn:\t{}", self.dCollRtn)?;
+        writeln!(f, "dFieldX:\t{}", self.dFieldX)?;
+        writeln!(f, "dFieldY:\t{}", self.dFieldY)?;
+        writeln!(f, "dBladeX1:\t{}", self.dBladeX1)?;
+        writeln!(f, "dBladeX2:\t{}", self.dBladeX2)?;
+        writeln!(f, "dBladeY1:\t{}", self.dBladeY1)?;
+        writeln!(f, "dBladeY2:\t{}", self.dBladeY2)?;
+        writeln!(f, "dIDUPosLng:\t{}", self.dIDUPosLng)?;
+        writeln!(f, "dIDUPosLat:\t{}", self.dIDUPosLat)?;
+        writeln!(f, "dIDUPosVrt:\t{}", self.dIDUPosVrt)?;
+        writeln!(f, "dIDUPosRtn:\t{}", self.dIDUPosRtn)?;
+        
+        writeln!(f, "dPatientSupportAngle:\t{:e}", self.dPatientSupportAngle)?;
+        writeln!(f, "dTableTopEccentricAngle:\t{:e}", self.dTableTopEccentricAngle)?;
+        writeln!(f, "dCouchVrt:\t{:e}", self.dCouchVrt)?;
+        writeln!(f, "dCouchLng:\t{:e}", self.dCouchLng)?;
+        writeln!(f, "dCouchLat:\t{:e}", self.dCouchLat)?;
+        writeln!(f, "dIDUResolutionX:\t{:e}", self.dIDUResolutionX)?;
+        writeln!(f, "dIDUResolutionY:\t{:e}", self.dIDUResolutionY)?;
+        writeln!(f, "dImageResolutionX:\t{:e}", self.dImageResolutionX)?;
+        writeln!(f, "dImageResolutionY:\t{:e}", self.dImageResolutionY)?;
+        writeln!(f, "dEnergy:\t{:e}", self.dEnergy)?;
+        writeln!(f, "dDoseRate:\t{:e}", self.dDoseRate)?;
+        writeln!(f, "dXRayKV:\t{:e}", self.dXRayKV)?;
+        writeln!(f, "dXRayMA:\t{:e}", self.dXRayMA)?;
+        writeln!(f, "dMetersetExposure:\t{:e}", self.dMetersetExposure)?;
+        writeln!(f, "dAcqAdjustment:\t{:e}", self.dAcqAdjustment)?;
+        writeln!(f, "dCTProjectionAngle:\t{:e}", self.dCTProjectionAngle)?;
+        writeln!(f, "dCTNormChamber:\t{:e}", self.dCTNormChamber)?;
+        writeln!(f, "dGatingTimeTag:\t{:e}", self.dGatingTimeTag)?;
+        writeln!(f, "dGating4DInfoX:\t{:e}", self.dGating4DInfoX)?;
+        writeln!(f, "dGating4DInfoY:\t{:e}", self.dGating4DInfoY)?;
+        writeln!(f, "dGating4DInfoZ:\t{:e}", self.dGating4DInfoZ)?;
+        writeln!(f, "dGating4DInfoTime:\t{:e}", self.dGating4DInfoTime)?;
+
+        Ok(())
+    }
+}
 /*
 fn display_header(h: &hnd_header_t) {
     println!("{}", h.sFileType);
@@ -185,15 +253,15 @@ pub fn parse_raw_data(raw: &hnd_header_raw_t) -> Result<Box<hnd_header_t>, io::E
 pub fn print_header(f: &mut File) -> Result<(), io::Error> {
     let raw = read_header_to_raw(f)?;
     let hnd_head = parse_raw_data(&raw)?;
-    println!("DEBUG: {:?}", hnd_head);
-
+    //println!("DEBUG: {:?}", hnd_head);
+    println!("{}", hnd_head);
     Ok(())
 }
 
 pub fn read_header(f: &mut File) -> Result<Box<hnd_header_t>, io::Error> {
     let raw = read_header_to_raw(f)?;
     let hnd_head = parse_raw_data(&raw)?;
-    println!("DEBUG: {:?}", hnd_head);
+    //println!("DEBUG: {:?}", hnd_head);
 
     Ok(hnd_head)
 }
