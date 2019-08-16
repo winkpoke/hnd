@@ -6,3 +6,5 @@ run `cargo build` to build the program.
 run `cargo test` to run the tests.
 
 run `cargo doc` to build the document.
+
+`hnd show <filename.hnd>` to show the header.
