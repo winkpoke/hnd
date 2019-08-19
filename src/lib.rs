@@ -114,9 +114,13 @@ impl std::fmt::Display for hnd_header_t {
         writeln!(f, "dIDUPosLat:\t{}", self.dIDUPosLat)?;
         writeln!(f, "dIDUPosVrt:\t{}", self.dIDUPosVrt)?;
         writeln!(f, "dIDUPosRtn:\t{}", self.dIDUPosRtn)?;
-        
+
         writeln!(f, "dPatientSupportAngle:\t{:e}", self.dPatientSupportAngle)?;
-        writeln!(f, "dTableTopEccentricAngle:\t{:e}", self.dTableTopEccentricAngle)?;
+        writeln!(
+            f,
+            "dTableTopEccentricAngle:\t{:e}",
+            self.dTableTopEccentricAngle
+        )?;
         writeln!(f, "dCouchVrt:\t{:e}", self.dCouchVrt)?;
         writeln!(f, "dCouchLng:\t{:e}", self.dCouchLng)?;
         writeln!(f, "dCouchLat:\t{:e}", self.dCouchLat)?;
@@ -141,17 +145,7 @@ impl std::fmt::Display for hnd_header_t {
         Ok(())
     }
 }
-/*
-fn display_header(h: &hnd_header_t) {
-    println!("{}", h.sFileType);
-    println!("{}", h.FileLength);
-    println!("{}", h.chasChecksumSpec);
-    println!("{}", h.nCheckSum);
-    println!("{}", h.sCreationDate);
-    println!("{}", h.sCreationTime);
-    println!("{}", h.sPatientID);
-}
-*/
+
 pub fn read_header_to_raw(f: &File) -> Result<Box<hnd_header_raw_t>, io::Error> {
     use std::io::{BufReader, Read};
 
@@ -266,6 +260,12 @@ pub fn read_header(f: &mut File) -> Result<Box<hnd_header_t>, io::Error> {
     Ok(hnd_head)
 }
 
+pub fn convert_to_raw(f: &mut File) -> Result<File, io::Error> {
+    let mut fraw = tempfile::tempfile()?;
+
+    Ok(fraw)
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -275,9 +275,8 @@ mod tests {
 
     #[test]
     fn test_read_header() {
-        use std::fs::File;
         let test_file_1 = String::from("test/test_data_1.hnd");
-        let mut f = File::open(test_file_1).unwrap();
+        let mut f = std::fs::File::open(test_file_1).unwrap();
         let header = crate::read_header(&mut f).unwrap();
         assert_eq!(header.sFileType, "VARIAN_VA_INTERNAL_HND_1.0");
         assert_eq!(header.sCreationDate, "20190610");
@@ -286,5 +285,12 @@ mod tests {
         assert_eq!(header.SizeY, 768);
         assert_eq!(header.dCTProjectionAngle, -71.01111111111112);
         assert_eq!(header.dCTNormChamber, 1164.0);
+    }
+
+    #[test]
+    fn test_write_raw() {
+        let test_file_1 = String::from("test/test_data_1.hnd");
+        let mut f = std::fs::File::open(test_file_1).unwrap();
+        let mut fraw = tempfile::tempfile();
     }
 }
