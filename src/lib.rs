@@ -4,6 +4,9 @@
 use std::convert::TryInto;
 use std::fs::File;
 use std::io;
+use std::io::Read;
+use std::io::Seek;
+use std::io::SeekFrom;
 
 #[derive(Default, Debug)]
 pub struct hnd_header_t {
@@ -177,7 +180,7 @@ fn parse_string(buf: &[u8], pos: &mut usize, len: usize) -> String {
         .to_string()
 }
 
-pub fn parse_raw_data(raw: &hnd_header_raw_t) -> Result<Box<hnd_header_t>, io::Error> {
+pub fn parse_header(raw: &hnd_header_raw_t) -> Result<Box<hnd_header_t>, io::Error> {
     let mut pos: usize = 0;
     let header = Box::new(hnd_header_t {
         sFileType: { parse_string(&*raw.data, &mut pos, 32) },
@@ -246,7 +249,7 @@ pub fn parse_raw_data(raw: &hnd_header_raw_t) -> Result<Box<hnd_header_t>, io::E
 
 pub fn print_header(f: &mut File) -> Result<(), io::Error> {
     let raw = read_header_to_raw(f)?;
-    let hnd_head = parse_raw_data(&raw)?;
+    let hnd_head = parse_header(&raw)?;
     //println!("DEBUG: {:?}", hnd_head);
     println!("{}", hnd_head);
     Ok(())
@@ -254,15 +257,36 @@ pub fn print_header(f: &mut File) -> Result<(), io::Error> {
 
 pub fn read_header(f: &mut File) -> Result<Box<hnd_header_t>, io::Error> {
     let raw = read_header_to_raw(f)?;
-    let hnd_head = parse_raw_data(&raw)?;
+    let hnd_head = parse_header(&raw)?;
     //println!("DEBUG: {:?}", hnd_head);
 
     Ok(hnd_head)
 }
 
+pub struct hnd_data_t {
+    data: Vec<u8>,
+}
+
+//fn parse_data(raw: &mut hnd_data_t) -> Result<Vec<u8>, io::Error> {}
+
+fn read_hnd_data(f: &mut File) -> Result<(Box<hnd_data_t>), io::Error> {
+    let raw_header = read_header_to_raw(f)?;
+    let header = parse_header(&raw_header)?;
+
+    let w = header.SizeX;
+    let h = header.SizeY;
+    let len = w * h;
+    let mut buf = hnd_data_t { data: Vec::new() };
+
+    // Skip HND header
+    let n = f.seek(SeekFrom::Start(1024));
+    let s = f.read_to_end(&mut buf.data)?;
+
+    Ok(Box::new(buf))
+}
+
 pub fn convert_to_raw(f: &mut File) -> Result<File, io::Error> {
     let mut fraw = tempfile::tempfile()?;
-
     Ok(fraw)
 }
 
@@ -289,8 +313,14 @@ mod tests {
 
     #[test]
     fn test_write_raw() {
+        // test hnd file
         let test_file_1 = String::from("test/test_data_1.hnd");
-        let mut f = std::fs::File::open(test_file_1).unwrap();
-        let mut fraw = tempfile::tempfile();
+        let mut f_test = std::fs::File::open(test_file_1).unwrap();
+
+        // raw file to compare with
+        let raw_file_1 = String::from("test/test_data_1.raw");
+        let mut f_raw = std::fs::File::open(raw_file_1).unwrap();
+
+        let mut f_out = tempfile::tempfile().unwrap();
     }
 }
