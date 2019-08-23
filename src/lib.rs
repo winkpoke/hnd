@@ -285,9 +285,8 @@ fn read_hnd_data(f: &mut File) -> Result<(Box<hnd_data_t>), io::Error> {
     Ok(Box::new(buf))
 }
 
-pub fn convert_to_raw(f: &mut File) -> Result<File, io::Error> {
-    let mut fraw = tempfile::tempfile()?;
-    Ok(fraw)
+pub fn convert_to_raw(fin: &mut File, fout: &mut File) -> Result<(), io::Error> {
+    Ok(())
 }
 
 #[cfg(test)]

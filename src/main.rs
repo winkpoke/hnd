@@ -21,7 +21,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         (@subcommand show =>
             (about: "print out header information.")
             (@arg filename: +required "Sets the input file"))
-    ).get_matches();
+        (@subcommand convert =>
+            (about: "print out header information.")
+            (@arg input: +required "Sets the input file")
+            (@arg output: +required "Sets the output file"))
+    )
+    .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("show") {
         let filename = matches.value_of("filename").unwrap();
@@ -30,16 +35,19 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("{:?}", metadata.file_type());
         hnd::print_header(&mut f)?;
     } else if let Some(matches) = matches.subcommand_matches("test") {
-
         println!("handling test subcommand!");
+    } else if let Some(matches) = matches.subcommand_matches("convert") {
+        let input = matches.value_of("input").unwrap();
+        let mut fin = File::open(input)?;
+        let output = matches.value_of("output").unwrap();
+        let mut fout = File::open(output)?;
+        hnd::convert_to_raw(&mut fin, &mut fout)?;
     }
 
     // let args: Vec<_> = env::args().collect();
     // if args.len() > 1 {
     //     println!("The first argument is {}", args[1]);
     // }
-
-
 
     Ok(())
 }
