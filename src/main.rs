@@ -1,6 +1,7 @@
 use std::env;
 use std::error::Error;
 use std::fs::File;
+use std::fs::OpenOptions;
 // use std::io::{BufReader, Read};
 
 #[macro_use]
@@ -39,8 +40,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     } else if let Some(matches) = matches.subcommand_matches("convert") {
         let input = matches.value_of("input").unwrap();
         let mut fin = File::open(input)?;
+
         let output = matches.value_of("output").unwrap();
-        let mut fout = File::open(output)?;
+        let mut fout = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .create(true)
+            .open(output)?;
+
         hnd::convert_to_raw(&mut fin, &mut fout)?;
     }
 

@@ -4,9 +4,7 @@
 use std::convert::TryInto;
 use std::fs::File;
 use std::io;
-use std::io::Read;
-use std::io::Seek;
-use std::io::SeekFrom;
+use std::io::{BufReader, Read, Seek, SeekFrom};
 
 #[derive(Default, Debug)]
 pub struct hnd_header_t {
@@ -150,8 +148,6 @@ impl std::fmt::Display for hnd_header_t {
 }
 
 pub fn read_header_to_raw(f: &File) -> Result<Box<hnd_header_raw_t>, io::Error> {
-    use std::io::{BufReader, Read};
-
     let mut reader = BufReader::new(f);
     let mut buf = Box::new([0; 1024]);
     let n: usize = reader.read(&mut (*buf)[..1024])?;
@@ -267,7 +263,31 @@ pub struct hnd_data_t {
     data: Vec<u8>,
 }
 
-//fn parse_data(raw: &mut hnd_data_t) -> Result<Vec<u8>, io::Error> {}
+pub enum parse_data_error_t {}
+
+fn parse_data(
+    raw: &hnd_data_t,
+    width: usize,
+    height: usize,
+) -> Result<Vec<u32>, parse_data_error_t> {
+    let mut output = Vec::with_capacity(width * height * 4);
+
+    // Read LUT
+    let lut_begin = 1024;
+    let lut_len = width * (height - 1) / 4;
+    let lut_end = lut_begin + lut_len;
+    let lut = &raw.data[lut_begin..lut_end];
+
+    // first Row and the first pixel of the second row are uncompressed data. \
+    for i in (lut_end..(lut_end + width + 1) * 4).step_by(4) {
+        let start = i;
+        let end = i + 4;
+        let v = u32::from_ne_bytes(raw.data[start..end].try_into().unwrap());
+        output.push(v);
+    }
+
+    Ok(Vec::new())
+}
 
 fn read_hnd_data(f: &mut File) -> Result<(Box<hnd_data_t>), io::Error> {
     let raw_header = read_header_to_raw(f)?;
