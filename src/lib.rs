@@ -263,6 +263,7 @@ pub struct hnd_data_t {
     data: Vec<u8>,
 }
 
+#[derive(Debug)]
 pub enum parse_data_error_t {}
 
 fn parse_data(
@@ -273,20 +274,87 @@ fn parse_data(
     let mut output = Vec::with_capacity(width * height * 4);
 
     // Read LUT
-    let lut_begin = 1024;
+    let lut_begin = 0;
     let lut_len = width * (height - 1) / 4;
     let lut_end = lut_begin + lut_len;
     let lut = &raw.data[lut_begin..lut_end];
 
-    // first Row and the first pixel of the second row are uncompressed data. \
-    for i in (lut_end..(lut_end + width + 1) * 4).step_by(4) {
+    // first Row and the first pixel of the second row are uncompressed data,
+    // which can be copied to output directly.
+    let mut pos = lut_end + (width + 1) * 4;
+    for i in (lut_end..pos).step_by(4) {
         let start = i;
-        let end = i + 4;
+        let end = start + 4;
         let v = u32::from_ne_bytes(raw.data[start..end].try_into().unwrap());
         output.push(v);
     }
 
-    Ok(Vec::new())
+    // Decompress the rest
+    let mut lut_idx = 0;
+    let mut lut_off = 0;
+    let mut i = width + 1;
+    while i < width * height {
+        let r11 = output[i - width - 1];
+        let r12 = output[i - width];
+        let r21 = output[i - 1];
+        let v = match lut_off {
+            0 => {
+                lut_off += 1;
+                lut[lut_idx] & 0x03
+            }
+            1 => {
+                lut_off += 1;
+                (lut[lut_idx] & 0x0c) >> 2
+            }
+            2 => {
+                lut_off += 1;
+                (lut[lut_idx] & 0x30) >> 4
+            }
+            3 => {
+                lut_off = 0;
+                let idx = lut_idx;
+                lut_idx += 1;
+                (lut[idx] & 0xc0) >> 6
+            }
+            _ => {
+                panic!("cannot reach here!");
+            }
+        };
+        let diff: i32 = match v {
+            0 => {
+                let start = pos;
+                let end = start + 1;
+                pos += 1;
+                i8::from_ne_bytes(raw.data[start..end].try_into().unwrap()).into()
+            }
+            1 => {
+                let start = pos;
+                let end = start + 2;
+                pos += 2;
+                i16::from_ne_bytes(raw.data[start..end].try_into().unwrap()).into()
+            }
+            2 => {
+                let start = pos;
+                let end = start + 4;
+                pos += 4;
+                i16::from_ne_bytes(raw.data[start..end].try_into().unwrap()).into()
+            }
+            _ => {
+                panic!("cannot reach here!");
+            }
+        };
+        // println!(
+        //   "lut[idx] = {} lut = {} i = {} r12 = {} r21 = {} r11 = {} diff = {}",
+        //    lut[lut_idx], v, i, r12, r21, r11, diff
+        // );
+        let pixel_value: u32 = (r12 as i64 + r21 as i64 - r11 as i64 + diff as i64)
+            .try_into()
+            .unwrap();
+        output.push(pixel_value);
+        i += 1;
+    }
+
+    Ok(output)
 }
 
 fn read_hnd_data(f: &mut File) -> Result<(Box<hnd_data_t>), io::Error> {
@@ -332,14 +400,40 @@ mod tests {
 
     #[test]
     fn test_write_raw() {
+        use std::convert::TryInto;
+        use std::io::{BufReader, Read, Seek, SeekFrom};
+
         // test hnd file
         let test_file_1 = String::from("test/test_data_1.hnd");
         let mut f_test = std::fs::File::open(test_file_1).unwrap();
+        let test_data = crate::read_hnd_data(&mut f_test).unwrap();
 
         // raw file to compare with
         let raw_file_1 = String::from("test/test_data_1.raw");
         let mut f_raw = std::fs::File::open(raw_file_1).unwrap();
 
         let mut f_out = tempfile::tempfile().unwrap();
+
+        // Read in the raw data
+        let mut raw = Vec::new();
+        f_raw.read_to_end(&mut raw);
+        for i in 0..100 {
+            println!(
+                "raw {} {}",
+                i,
+                u32::from_ne_bytes(raw[i * 4..i * 4 + 4].try_into().unwrap())
+            );
+        }
+
+        // parse the hnd data
+        let parsed = crate::parse_data(&test_data, 1024, 768).unwrap();
+
+        //compare the results
+        for i in 0..1024 * 768 {
+            let x = parsed[i];
+            let y = u32::from_ne_bytes(raw[i * 4..i * 4 + 4].try_into().unwrap());
+            assert_eq!(x, y);
+            print!(".");
+        }
     }
 }
