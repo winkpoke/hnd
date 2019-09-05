@@ -1,10 +1,10 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 
-use std::convert::TryInto;
+use std::convert::{From, Into, TryInto};
 use std::fs::File;
 use std::io;
-use std::io::{BufReader, Read, Seek, SeekFrom};
+use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 
 #[derive(Default, Debug)]
 pub struct hnd_header_t {
@@ -70,10 +70,11 @@ pub struct hnd_header_t {
     dGating4DInfoTime: f64,
 }
 
-pub struct hnd_header_raw_t {
-    data: Box<[u8; 1024]>,
-}
+type hnd_header_raw_t = [u8; 1024];
+type hnd_data_t = Vec<u8>;
 
+#[derive(Debug)]
+pub enum parse_data_error_t {}
 impl std::fmt::Display for hnd_header_t {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "File Type:\t{}", self.sFileType)?;
@@ -149,10 +150,10 @@ impl std::fmt::Display for hnd_header_t {
 
 pub fn read_header_to_raw(f: &File) -> Result<Box<hnd_header_raw_t>, io::Error> {
     let mut reader = BufReader::new(f);
-    let mut buf = Box::new([0; 1024]);
-    let n: usize = reader.read(&mut (*buf)[..1024])?;
+    let mut buf: hnd_header_raw_t = [0; 1024];
+    let n: usize = reader.read(&mut buf[..1024])?;
     println!("DEBUG: read in {} bytes in total.", n);
-    return Ok(Box::new(hnd_header_raw_t { data: buf }));
+    return Ok(Box::new(buf));
 }
 
 fn parse_u32(buf: &[u8], pos: &mut usize) -> u32 {
@@ -179,66 +180,66 @@ fn parse_string(buf: &[u8], pos: &mut usize, len: usize) -> String {
 pub fn parse_header(raw: &hnd_header_raw_t) -> Result<Box<hnd_header_t>, io::Error> {
     let mut pos: usize = 0;
     let header = Box::new(hnd_header_t {
-        sFileType: { parse_string(&*raw.data, &mut pos, 32) },
-        FileLength: { parse_u32(&*raw.data, &mut pos) },
-        chasChecksumSpec: { parse_string(&*raw.data, &mut pos, 4) },
-        nCheckSum: { parse_u32(&*raw.data, &mut pos) },
-        sCreationDate: { parse_string(&*raw.data, &mut pos, 8) },
-        sCreationTime: { parse_string(&*raw.data, &mut pos, 8) },
-        sPatientID: { parse_string(&*raw.data, &mut pos, 16) },
-        nPatientSer: { parse_u32(&*raw.data, &mut pos) },
-        sSeriesID: { parse_string(&*raw.data, &mut pos, 16) },
-        nSeriesSer: { parse_u32(&*raw.data, &mut pos) },
-        sSliceID: { parse_string(&*raw.data, &mut pos, 16) },
-        nSliceSer: { parse_u32(&*raw.data, &mut pos) },
-        SizeX: { parse_u32(&*raw.data, &mut pos) },
-        SizeY: { parse_u32(&*raw.data, &mut pos) },
-        dSliceZPos: { parse_f64(&*raw.data, &mut pos) },
-        sModality: { parse_string(&*raw.data, &mut pos, 16) },
-        nWindow: { parse_u32(&*raw.data, &mut pos) },
-        nLevel: { parse_u32(&*raw.data, &mut pos) },
-        nPixelOffset: { parse_u32(&*raw.data, &mut pos) },
-        sImageType: { parse_string(&*raw.data, &mut pos, 4) },
-        dGantryRtn: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dSAD: { parse_f64(&*raw.data, &mut pos) },       //f64,
-        dSFD: { parse_f64(&*raw.data, &mut pos) },       //f64,
-        dCollX1: { parse_f64(&*raw.data, &mut pos) },    //f64,
-        dCollX2: { parse_f64(&*raw.data, &mut pos) },    //f64,
-        dCollY1: { parse_f64(&*raw.data, &mut pos) },    //f64,
-        dCollY2: { parse_f64(&*raw.data, &mut pos) },    //f64,
-        dCollRtn: { parse_f64(&*raw.data, &mut pos) },   //f64,
-        dFieldX: { parse_f64(&*raw.data, &mut pos) },    //f64,
-        dFieldY: { parse_f64(&*raw.data, &mut pos) },    //f64,
-        dBladeX1: { parse_f64(&*raw.data, &mut pos) },   //f64,
-        dBladeX2: { parse_f64(&*raw.data, &mut pos) },   //f64,
-        dBladeY1: { parse_f64(&*raw.data, &mut pos) },   //f64,
-        dBladeY2: { parse_f64(&*raw.data, &mut pos) },   //f64,
-        dIDUPosLng: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dIDUPosLat: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dIDUPosVrt: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dIDUPosRtn: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dPatientSupportAngle: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dTableTopEccentricAngle: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dCouchVrt: { parse_f64(&*raw.data, &mut pos) },  //f64,
-        dCouchLng: { parse_f64(&*raw.data, &mut pos) },  //f64,
-        dCouchLat: { parse_f64(&*raw.data, &mut pos) },  //f64,
-        dIDUResolutionX: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dIDUResolutionY: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dImageResolutionX: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dImageResolutionY: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dEnergy: { parse_f64(&*raw.data, &mut pos) },    //f64,
-        dDoseRate: { parse_f64(&*raw.data, &mut pos) },  //f64,
-        dXRayKV: { parse_f64(&*raw.data, &mut pos) },    //f64,
-        dXRayMA: { parse_f64(&*raw.data, &mut pos) },    //f64,
-        dMetersetExposure: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dAcqAdjustment: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dCTProjectionAngle: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dCTNormChamber: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dGatingTimeTag: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dGating4DInfoX: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dGating4DInfoY: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dGating4DInfoZ: { parse_f64(&*raw.data, &mut pos) }, //f64,
-        dGating4DInfoTime: { parse_f64(&*raw.data, &mut pos) }, //f64,
+        sFileType: { parse_string(raw, &mut pos, 32) },
+        FileLength: { parse_u32(raw, &mut pos) },
+        chasChecksumSpec: { parse_string(raw, &mut pos, 4) },
+        nCheckSum: { parse_u32(raw, &mut pos) },
+        sCreationDate: { parse_string(raw, &mut pos, 8) },
+        sCreationTime: { parse_string(raw, &mut pos, 8) },
+        sPatientID: { parse_string(raw, &mut pos, 16) },
+        nPatientSer: { parse_u32(raw, &mut pos) },
+        sSeriesID: { parse_string(raw, &mut pos, 16) },
+        nSeriesSer: { parse_u32(raw, &mut pos) },
+        sSliceID: { parse_string(raw, &mut pos, 16) },
+        nSliceSer: { parse_u32(raw, &mut pos) },
+        SizeX: { parse_u32(raw, &mut pos) },
+        SizeY: { parse_u32(raw, &mut pos) },
+        dSliceZPos: { parse_f64(raw, &mut pos) },
+        sModality: { parse_string(raw, &mut pos, 16) },
+        nWindow: { parse_u32(raw, &mut pos) },
+        nLevel: { parse_u32(raw, &mut pos) },
+        nPixelOffset: { parse_u32(raw, &mut pos) },
+        sImageType: { parse_string(raw, &mut pos, 4) },
+        dGantryRtn: { parse_f64(raw, &mut pos) }, //f64,
+        dSAD: { parse_f64(raw, &mut pos) },       //f64,
+        dSFD: { parse_f64(raw, &mut pos) },       //f64,
+        dCollX1: { parse_f64(raw, &mut pos) },    //f64,
+        dCollX2: { parse_f64(raw, &mut pos) },    //f64,
+        dCollY1: { parse_f64(raw, &mut pos) },    //f64,
+        dCollY2: { parse_f64(raw, &mut pos) },    //f64,
+        dCollRtn: { parse_f64(raw, &mut pos) },   //f64,
+        dFieldX: { parse_f64(raw, &mut pos) },    //f64,
+        dFieldY: { parse_f64(raw, &mut pos) },    //f64,
+        dBladeX1: { parse_f64(raw, &mut pos) },   //f64,
+        dBladeX2: { parse_f64(raw, &mut pos) },   //f64,
+        dBladeY1: { parse_f64(raw, &mut pos) },   //f64,
+        dBladeY2: { parse_f64(raw, &mut pos) },   //f64,
+        dIDUPosLng: { parse_f64(raw, &mut pos) }, //f64,
+        dIDUPosLat: { parse_f64(raw, &mut pos) }, //f64,
+        dIDUPosVrt: { parse_f64(raw, &mut pos) }, //f64,
+        dIDUPosRtn: { parse_f64(raw, &mut pos) }, //f64,
+        dPatientSupportAngle: { parse_f64(raw, &mut pos) }, //f64,
+        dTableTopEccentricAngle: { parse_f64(raw, &mut pos) }, //f64,
+        dCouchVrt: { parse_f64(raw, &mut pos) },  //f64,
+        dCouchLng: { parse_f64(raw, &mut pos) },  //f64,
+        dCouchLat: { parse_f64(raw, &mut pos) },  //f64,
+        dIDUResolutionX: { parse_f64(raw, &mut pos) }, //f64,
+        dIDUResolutionY: { parse_f64(raw, &mut pos) }, //f64,
+        dImageResolutionX: { parse_f64(raw, &mut pos) }, //f64,
+        dImageResolutionY: { parse_f64(raw, &mut pos) }, //f64,
+        dEnergy: { parse_f64(raw, &mut pos) },    //f64,
+        dDoseRate: { parse_f64(raw, &mut pos) },  //f64,
+        dXRayKV: { parse_f64(raw, &mut pos) },    //f64,
+        dXRayMA: { parse_f64(raw, &mut pos) },    //f64,
+        dMetersetExposure: { parse_f64(raw, &mut pos) }, //f64,
+        dAcqAdjustment: { parse_f64(raw, &mut pos) }, //f64,
+        dCTProjectionAngle: { parse_f64(raw, &mut pos) }, //f64,
+        dCTNormChamber: { parse_f64(raw, &mut pos) }, //f64,
+        dGatingTimeTag: { parse_f64(raw, &mut pos) }, //f64,
+        dGating4DInfoX: { parse_f64(raw, &mut pos) }, //f64,
+        dGating4DInfoY: { parse_f64(raw, &mut pos) }, //f64,
+        dGating4DInfoZ: { parse_f64(raw, &mut pos) }, //f64,
+        dGating4DInfoTime: { parse_f64(raw, &mut pos) }, //f64,
     });
     Ok(header)
 }
@@ -259,12 +260,10 @@ pub fn read_header(f: &mut File) -> Result<Box<hnd_header_t>, io::Error> {
     Ok(hnd_head)
 }
 
-pub struct hnd_data_t {
-    data: Vec<u8>,
+fn write_header(f: &mut File, h: &hnd_header_t) -> Result<(), io::Error> {
+    f.write(h.sFileType.as_ref());
+    Ok(())
 }
-
-#[derive(Debug)]
-pub enum parse_data_error_t {}
 
 fn parse_data(
     raw: &hnd_data_t,
@@ -277,7 +276,7 @@ fn parse_data(
     let lut_begin = 0;
     let lut_len = width * (height - 1) / 4;
     let lut_end = lut_begin + lut_len;
-    let lut = &raw.data[lut_begin..lut_end];
+    let lut = &raw[lut_begin..lut_end];
 
     // first Row and the first pixel of the second row are uncompressed data,
     // which can be copied to output directly.
@@ -285,7 +284,7 @@ fn parse_data(
     for i in (lut_end..pos).step_by(4) {
         let start = i;
         let end = start + 4;
-        let v = u32::from_ne_bytes(raw.data[start..end].try_into().unwrap());
+        let v = u32::from_ne_bytes(raw[start..end].try_into().unwrap());
         output.push(v);
     }
 
@@ -325,19 +324,19 @@ fn parse_data(
                 let start = pos;
                 let end = start + 1;
                 pos += 1;
-                i8::from_ne_bytes(raw.data[start..end].try_into().unwrap()).into()
+                i8::from_ne_bytes(raw[start..end].try_into().unwrap()).into()
             }
             1 => {
                 let start = pos;
                 let end = start + 2;
                 pos += 2;
-                i16::from_ne_bytes(raw.data[start..end].try_into().unwrap()).into()
+                i16::from_ne_bytes(raw[start..end].try_into().unwrap()).into()
             }
             2 => {
                 let start = pos;
                 let end = start + 4;
                 pos += 4;
-                i16::from_ne_bytes(raw.data[start..end].try_into().unwrap()).into()
+                i16::from_ne_bytes(raw[start..end].try_into().unwrap()).into()
             }
             _ => {
                 panic!("cannot reach here!");
@@ -357,6 +356,8 @@ fn parse_data(
     Ok(output)
 }
 
+//fn from_raw(img: &[u8], width: u32, height: u32) -> Result<Box> {}
+
 fn read_hnd_data(f: &mut File) -> Result<(Box<hnd_data_t>), io::Error> {
     let raw_header = read_header_to_raw(f)?;
     let header = parse_header(&raw_header)?;
@@ -364,11 +365,11 @@ fn read_hnd_data(f: &mut File) -> Result<(Box<hnd_data_t>), io::Error> {
     let w = header.SizeX;
     let h = header.SizeY;
     let len = w * h;
-    let mut buf = hnd_data_t { data: Vec::new() };
+    let mut buf = Vec::new();
 
     // Skip HND header
     let n = f.seek(SeekFrom::Start(1024));
-    let s = f.read_to_end(&mut buf.data)?;
+    let s = f.read_to_end(&mut buf)?;
 
     Ok(Box::new(buf))
 }
