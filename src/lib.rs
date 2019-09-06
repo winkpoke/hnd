@@ -6,6 +6,11 @@ use std::fs::File;
 use std::io;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 
+
+
+#[derive(Debug)]
+pub enum ImageConvError {}
+
 #[derive(Default, Debug)]
 pub struct hnd_header_t {
     sFileType: String, //[u8; 32],
@@ -78,37 +83,35 @@ pub struct HndImage {
     data: hnd_data_t,
 }
 
-pub struct RawImage {
-    width: u32,
-    height: u32,
-    data: Vec<u8>,
+pub struct RawImage<T> {
+    width: usize,
+    height: usize,
+    data: Vec<T>,
 }
 
 pub trait Size2D {
-    fn width(&self) -> u32;
-    fn height(&self) -> u32;
+    fn width(&self) -> usize;
+    fn height(&self) -> usize;
 }
 
 impl Size2D for HndImage {
-    fn width(&self) -> u32 {
-        self.header.SizeX
+    fn width(&self) -> usize {
+        self.header.SizeX as usize
     }
-    fn height(&self) -> u32 {
-        self.header.SizeY
+    fn height(&self) -> usize {
+        self.header.SizeY as usize
     }
 }
 
-impl Size2D for RawImage {
-    fn width(&self) -> u32 {
+impl <T> Size2D for RawImage<T> {
+    fn width(&self) -> usize {
         self.width
     }
-    fn height(&self) -> u32 {
+    fn height(&self) -> usize {
         self.height
     }
 }
 
-#[derive(Debug)]
-pub enum parse_data_error_t {}
 impl std::fmt::Display for hnd_header_t {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "File Type:\t{}", self.sFileType)?;
@@ -182,12 +185,12 @@ impl std::fmt::Display for hnd_header_t {
     }
 }
 
-pub fn read_header_to_raw(f: &File) -> Result<Box<hnd_header_raw_t>, io::Error> {
+pub fn read_header_to_raw(f: &File) -> Result<hnd_header_raw_t, io::Error> {
     let mut reader = BufReader::new(f);
     let mut buf: hnd_header_raw_t = [0; 1024];
     let n: usize = reader.read(&mut buf[..1024])?;
     println!("DEBUG: read in {} bytes in total.", n);
-    return Ok(Box::new(buf));
+    return Ok(buf);
 }
 
 fn parse_u32(buf: &[u8], pos: &mut usize) -> u32 {
@@ -279,84 +282,21 @@ impl Into<hnd_header_t> for hnd_header_raw_t {
     }
 }
 
-pub fn parse_header(raw: &hnd_header_raw_t) -> Result<Box<hnd_header_t>, io::Error> {
-    let mut pos: usize = 0;
-    let header = Box::new(hnd_header_t {
-        sFileType: { parse_string(raw, &mut pos, 32) },
-        FileLength: { parse_u32(raw, &mut pos) },
-        chasChecksumSpec: { parse_string(raw, &mut pos, 4) },
-        nCheckSum: { parse_u32(raw, &mut pos) },
-        sCreationDate: { parse_string(raw, &mut pos, 8) },
-        sCreationTime: { parse_string(raw, &mut pos, 8) },
-        sPatientID: { parse_string(raw, &mut pos, 16) },
-        nPatientSer: { parse_u32(raw, &mut pos) },
-        sSeriesID: { parse_string(raw, &mut pos, 16) },
-        nSeriesSer: { parse_u32(raw, &mut pos) },
-        sSliceID: { parse_string(raw, &mut pos, 16) },
-        nSliceSer: { parse_u32(raw, &mut pos) },
-        SizeX: { parse_u32(raw, &mut pos) },
-        SizeY: { parse_u32(raw, &mut pos) },
-        dSliceZPos: { parse_f64(raw, &mut pos) },
-        sModality: { parse_string(raw, &mut pos, 16) },
-        nWindow: { parse_u32(raw, &mut pos) },
-        nLevel: { parse_u32(raw, &mut pos) },
-        nPixelOffset: { parse_u32(raw, &mut pos) },
-        sImageType: { parse_string(raw, &mut pos, 4) },
-        dGantryRtn: { parse_f64(raw, &mut pos) }, //f64,
-        dSAD: { parse_f64(raw, &mut pos) },       //f64,
-        dSFD: { parse_f64(raw, &mut pos) },       //f64,
-        dCollX1: { parse_f64(raw, &mut pos) },    //f64,
-        dCollX2: { parse_f64(raw, &mut pos) },    //f64,
-        dCollY1: { parse_f64(raw, &mut pos) },    //f64,
-        dCollY2: { parse_f64(raw, &mut pos) },    //f64,
-        dCollRtn: { parse_f64(raw, &mut pos) },   //f64,
-        dFieldX: { parse_f64(raw, &mut pos) },    //f64,
-        dFieldY: { parse_f64(raw, &mut pos) },    //f64,
-        dBladeX1: { parse_f64(raw, &mut pos) },   //f64,
-        dBladeX2: { parse_f64(raw, &mut pos) },   //f64,
-        dBladeY1: { parse_f64(raw, &mut pos) },   //f64,
-        dBladeY2: { parse_f64(raw, &mut pos) },   //f64,
-        dIDUPosLng: { parse_f64(raw, &mut pos) }, //f64,
-        dIDUPosLat: { parse_f64(raw, &mut pos) }, //f64,
-        dIDUPosVrt: { parse_f64(raw, &mut pos) }, //f64,
-        dIDUPosRtn: { parse_f64(raw, &mut pos) }, //f64,
-        dPatientSupportAngle: { parse_f64(raw, &mut pos) }, //f64,
-        dTableTopEccentricAngle: { parse_f64(raw, &mut pos) }, //f64,
-        dCouchVrt: { parse_f64(raw, &mut pos) },  //f64,
-        dCouchLng: { parse_f64(raw, &mut pos) },  //f64,
-        dCouchLat: { parse_f64(raw, &mut pos) },  //f64,
-        dIDUResolutionX: { parse_f64(raw, &mut pos) }, //f64,
-        dIDUResolutionY: { parse_f64(raw, &mut pos) }, //f64,
-        dImageResolutionX: { parse_f64(raw, &mut pos) }, //f64,
-        dImageResolutionY: { parse_f64(raw, &mut pos) }, //f64,
-        dEnergy: { parse_f64(raw, &mut pos) },    //f64,
-        dDoseRate: { parse_f64(raw, &mut pos) },  //f64,
-        dXRayKV: { parse_f64(raw, &mut pos) },    //f64,
-        dXRayMA: { parse_f64(raw, &mut pos) },    //f64,
-        dMetersetExposure: { parse_f64(raw, &mut pos) }, //f64,
-        dAcqAdjustment: { parse_f64(raw, &mut pos) }, //f64,
-        dCTProjectionAngle: { parse_f64(raw, &mut pos) }, //f64,
-        dCTNormChamber: { parse_f64(raw, &mut pos) }, //f64,
-        dGatingTimeTag: { parse_f64(raw, &mut pos) }, //f64,
-        dGating4DInfoX: { parse_f64(raw, &mut pos) }, //f64,
-        dGating4DInfoY: { parse_f64(raw, &mut pos) }, //f64,
-        dGating4DInfoZ: { parse_f64(raw, &mut pos) }, //f64,
-        dGating4DInfoTime: { parse_f64(raw, &mut pos) }, //f64,
-    });
-    Ok(header)
-}
 
 pub fn print_header(f: &mut File) -> Result<(), io::Error> {
     let raw = read_header_to_raw(f)?;
-    let hnd_head = parse_header(&raw)?;
+    //let hnd_head = parse_header(&raw)?;
+    let hnd_head: hnd_header_t = raw.into();
+    
     //println!("DEBUG: {:?}", hnd_head);
     println!("{}", hnd_head);
+
     Ok(())
 }
 
-pub fn read_header(f: &mut File) -> Result<Box<hnd_header_t>, io::Error> {
+pub fn read_header(f: &mut File) -> Result<hnd_header_t, io::Error> {
     let raw = read_header_to_raw(f)?;
-    let hnd_head = parse_header(&raw)?;
+    let hnd_head: hnd_header_t = raw.into();
     //println!("DEBUG: {:?}", hnd_head);
 
     Ok(hnd_head)
@@ -367,11 +307,12 @@ fn write_header(f: &mut File, h: &hnd_header_t) -> Result<(), io::Error> {
     Ok(())
 }
 
+
 fn parse_data(
     raw: &hnd_data_t,
     width: usize,
     height: usize,
-) -> Result<Vec<u32>, parse_data_error_t> {
+) -> Result<Vec<u32>, ImageConvError> {
     let mut output = Vec::with_capacity(width * height * 4);
 
     // Read LUT
@@ -458,11 +399,24 @@ fn parse_data(
     Ok(output)
 }
 
+impl TryInto<RawImage<u32>> for HndImage {
+    type Error = ImageConvError;
+    fn try_into(self) -> Result<RawImage<u32>, Self::Error> {
+        let width = self.width();
+        let height = self.height();
+        let data = parse_data(&self.data, width, height)?;
+
+        Ok(RawImage{width: width, height: height, data})    
+    }
+
+}
+
+
 //fn from_raw(img: &[u8], width: u32, height: u32) -> Result<Box> {}
 
-fn read_hnd_data(f: &mut File) -> Result<(Box<hnd_data_t>), io::Error> {
+fn read_hnd_data(f: &mut File) -> Result<hnd_data_t, io::Error> {
     let raw_header = read_header_to_raw(f)?;
-    let header = parse_header(&raw_header)?;
+    let header: hnd_header_t = raw_header.into();
 
     let w = header.SizeX;
     let h = header.SizeY;
@@ -473,7 +427,7 @@ fn read_hnd_data(f: &mut File) -> Result<(Box<hnd_data_t>), io::Error> {
     let n = f.seek(SeekFrom::Start(1024));
     let s = f.read_to_end(&mut buf)?;
 
-    Ok(Box::new(buf))
+    Ok(buf)
 }
 
 pub fn convert_to_raw(fin: &mut File, fout: &mut File) -> Result<(), io::Error> {
