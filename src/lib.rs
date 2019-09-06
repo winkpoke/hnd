@@ -73,6 +73,40 @@ pub struct hnd_header_t {
 type hnd_header_raw_t = [u8; 1024];
 type hnd_data_t = Vec<u8>;
 
+pub struct HndImage {
+    header: hnd_header_t,
+    data: hnd_data_t,
+}
+
+pub struct RawImage {
+    width: u32,
+    height: u32,
+    data: Vec<u8>,
+}
+
+pub trait Size2D {
+    fn width(&self) -> u32;
+    fn height(&self) -> u32;
+}
+
+impl Size2D for HndImage {
+    fn width(&self) -> u32 {
+        self.header.SizeX
+    }
+    fn height(&self) -> u32 {
+        self.header.SizeY
+    }
+}
+
+impl Size2D for RawImage {
+    fn width(&self) -> u32 {
+        self.width
+    }
+    fn height(&self) -> u32 {
+        self.height
+    }
+}
+
 #[derive(Debug)]
 pub enum parse_data_error_t {}
 impl std::fmt::Display for hnd_header_t {
@@ -175,6 +209,74 @@ fn parse_string(buf: &[u8], pos: &mut usize, len: usize) -> String {
         .unwrap()
         .trim_end_matches('\u{0}')
         .to_string()
+}
+
+impl Into<hnd_header_t> for hnd_header_raw_t {
+    fn into(self) -> hnd_header_t {
+        let mut pos: usize = 0;
+        hnd_header_t {
+            sFileType: { parse_string(&self, &mut pos, 32) },
+            FileLength: { parse_u32(&self, &mut pos) },
+            chasChecksumSpec: { parse_string(&self, &mut pos, 4) },
+            nCheckSum: { parse_u32(&self, &mut pos) },
+            sCreationDate: { parse_string(&self, &mut pos, 8) },
+            sCreationTime: { parse_string(&self, &mut pos, 8) },
+            sPatientID: { parse_string(&self, &mut pos, 16) },
+            nPatientSer: { parse_u32(&self, &mut pos) },
+            sSeriesID: { parse_string(&self, &mut pos, 16) },
+            nSeriesSer: { parse_u32(&self, &mut pos) },
+            sSliceID: { parse_string(&self, &mut pos, 16) },
+            nSliceSer: { parse_u32(&self, &mut pos) },
+            SizeX: { parse_u32(&self, &mut pos) },
+            SizeY: { parse_u32(&self, &mut pos) },
+            dSliceZPos: { parse_f64(&self, &mut pos) },
+            sModality: { parse_string(&self, &mut pos, 16) },
+            nWindow: { parse_u32(&self, &mut pos) },
+            nLevel: { parse_u32(&self, &mut pos) },
+            nPixelOffset: { parse_u32(&self, &mut pos) },
+            sImageType: { parse_string(&self, &mut pos, 4) },
+            dGantryRtn: { parse_f64(&self, &mut pos) }, //f64,
+            dSAD: { parse_f64(&self, &mut pos) },       //f64,
+            dSFD: { parse_f64(&self, &mut pos) },       //f64,
+            dCollX1: { parse_f64(&self, &mut pos) },    //f64,
+            dCollX2: { parse_f64(&self, &mut pos) },    //f64,
+            dCollY1: { parse_f64(&self, &mut pos) },    //f64,
+            dCollY2: { parse_f64(&self, &mut pos) },    //f64,
+            dCollRtn: { parse_f64(&self, &mut pos) },   //f64,
+            dFieldX: { parse_f64(&self, &mut pos) },    //f64,
+            dFieldY: { parse_f64(&self, &mut pos) },    //f64,
+            dBladeX1: { parse_f64(&self, &mut pos) },   //f64,
+            dBladeX2: { parse_f64(&self, &mut pos) },   //f64,
+            dBladeY1: { parse_f64(&self, &mut pos) },   //f64,
+            dBladeY2: { parse_f64(&self, &mut pos) },   //f64,
+            dIDUPosLng: { parse_f64(&self, &mut pos) }, //f64,
+            dIDUPosLat: { parse_f64(&self, &mut pos) }, //f64,
+            dIDUPosVrt: { parse_f64(&self, &mut pos) }, //f64,
+            dIDUPosRtn: { parse_f64(&self, &mut pos) }, //f64,
+            dPatientSupportAngle: { parse_f64(&self, &mut pos) }, //f64,
+            dTableTopEccentricAngle: { parse_f64(&self, &mut pos) }, //f64,
+            dCouchVrt: { parse_f64(&self, &mut pos) },  //f64,
+            dCouchLng: { parse_f64(&self, &mut pos) },  //f64,
+            dCouchLat: { parse_f64(&self, &mut pos) },  //f64,
+            dIDUResolutionX: { parse_f64(&self, &mut pos) }, //f64,
+            dIDUResolutionY: { parse_f64(&self, &mut pos) }, //f64,
+            dImageResolutionX: { parse_f64(&self, &mut pos) }, //f64,
+            dImageResolutionY: { parse_f64(&self, &mut pos) }, //f64,
+            dEnergy: { parse_f64(&self, &mut pos) },    //f64,
+            dDoseRate: { parse_f64(&self, &mut pos) },  //f64,
+            dXRayKV: { parse_f64(&self, &mut pos) },    //f64,
+            dXRayMA: { parse_f64(&self, &mut pos) },    //f64,
+            dMetersetExposure: { parse_f64(&self, &mut pos) }, //f64,
+            dAcqAdjustment: { parse_f64(&self, &mut pos) }, //f64,
+            dCTProjectionAngle: { parse_f64(&self, &mut pos) }, //f64,
+            dCTNormChamber: { parse_f64(&self, &mut pos) }, //f64,
+            dGatingTimeTag: { parse_f64(&self, &mut pos) }, //f64,
+            dGating4DInfoX: { parse_f64(&self, &mut pos) }, //f64,
+            dGating4DInfoY: { parse_f64(&self, &mut pos) }, //f64,
+            dGating4DInfoZ: { parse_f64(&self, &mut pos) }, //f64,
+            dGating4DInfoTime: { parse_f64(&self, &mut pos) }, //f64,
+        }
+    }
 }
 
 pub fn parse_header(raw: &hnd_header_raw_t) -> Result<Box<hnd_header_t>, io::Error> {
