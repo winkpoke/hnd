@@ -6,12 +6,10 @@ use std::fs::File;
 use std::io;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 
-
-
 #[derive(Debug)]
 pub enum ImageConvError {}
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct hnd_header_t {
     sFileType: String, //[u8; 32],
     FileLength: u32,
@@ -103,7 +101,7 @@ impl Size2D for HndImage {
     }
 }
 
-impl <T> Size2D for RawImage<T> {
+impl<T> Size2D for RawImage<T> {
     fn width(&self) -> usize {
         self.width
     }
@@ -282,12 +280,157 @@ impl Into<hnd_header_t> for hnd_header_raw_t {
     }
 }
 
+// fn copy_string_by_size<'a>(buf: &'a mut [u8], s: &str, start: usize, len: usize) -> usize {
+//     let mut tmp = s.into_bytes();
+//     tmp.resize(len, 0);
+//     buf[start..start + len].copy_from_slice(&tmp);
+//     return start + len;
+// }
+
+// use std::iter::{Chain, Take};
+// use std::str::Bytes;
+// fn str_to_iter<const N: usize>(s: &str) -> Take<T> {
+//     s.bytes().chain([0; N].iter()).take(N)
+// }
+//
+#[macro_export]
+macro_rules! iter {
+    ( String , $buf_iter: expr, $name: expr , $n: expr ) => {
+        // $name
+        //     .clone()
+        //     .into_bytes()
+        //     .iter()
+        //     .chain([0; $n].iter())
+        //     .take($n);
+        print!("{} ----> ", $name);
+        let tmp_internal_8293 = $name.into_bytes();
+        let mut i = 0;
+        $buf_iter
+            .zip(tmp_internal_8293.iter().chain([0; $n].iter()).take($n - 1))
+            .for_each(|(to, from)| {
+                print!("{:X} ", *from);
+                i += 1;
+                *to = *from
+            });
+        println!(" --- {}", i);
+    };
+
+    ( u32 , $buf_iter: expr , $name: expr , $n: expr ) => {
+        // $name.to_ne_bytes().iter().take(4);
+        print!("{} ----> ", $name);
+        let tmp_internal_7293 = $name.to_ne_bytes();
+        let mut i = 0;
+        $buf_iter
+            .zip(tmp_internal_7293.iter().take(3))
+            .for_each(|(to, from)| {
+                print!("{:X} ", *from);
+                i += 1;
+                *to = *from
+            });
+        println!(" --- {}", i);
+    };
+
+    ( f64 , $buf_iter: expr , $name: expr , $n: expr ) => {
+        // $name.to_bits().to_ne_bytes().iter().take(8);
+        let tmp_internal_8693 = $name.to_bits().to_ne_bytes();
+        $buf_iter
+            .zip(tmp_internal_8693.iter().take(7))
+            .for_each(|(to, from)| *to = *from);
+    };
+}
+
+macro_rules! chain {
+    ( $e1: expr , $( $e: expr ),* ) => {
+        {
+            let mut tmp = $e1;
+            $(
+                tmp.chain($e);
+            )*
+            tmp
+        }
+    };
+}
+use std::iter::Take;
+impl Into<hnd_header_raw_t> for hnd_header_t {
+    fn into(self) -> hnd_header_raw_t {
+        let mut buf: hnd_header_raw_t = [0; 1024];
+
+        let buf_iter = &mut buf.iter_mut();
+        // let tmp = self.sFileType.into_bytes();
+        // buf_iter
+        //     .zip(tmp.iter().chain([0; 32].iter()).take(32))
+        //     .for_each(|(to, from)| *to = *from);
+        // let mut src = chain!(
+        iter!(String, buf_iter, self.sFileType, 32);
+        iter!(u32, buf_iter, self.FileLength, 4);
+        iter!(String, buf_iter, self.chasChecksumSpec, 4);
+        iter!(u32, buf_iter, self.nCheckSum, 4);
+        iter!(String, buf_iter, self.sCreationDate, 8);
+        iter!(String, buf_iter, self.sCreationTime, 8);
+        iter!(String, buf_iter, self.sPatientID, 16); //[u8; 16],
+        iter!(u32, buf_iter, self.nPatientSer, 4);
+        iter!(String, buf_iter, self.sSeriesID, 16); //[u8; 16],
+        iter!(u32, buf_iter, self.nSeriesSer, 4);
+        iter!(String, buf_iter, self.sSliceID, 16); //[u8; 16],
+        iter!(u32, buf_iter, self.nSliceSer, 4);
+        iter!(u32, buf_iter, self.SizeX, 4);
+        iter!(u32, buf_iter, self.SizeY, 4);
+        iter!(f64, buf_iter, self.dSliceZPos, 8);
+        iter!(String, buf_iter, self.sModality, 16); //[u8; 16],
+        iter!(u32, buf_iter, self.nWindow, 4);
+        iter!(u32, buf_iter, self.nLevel, 4);
+        iter!(u32, buf_iter, self.nPixelOffset, 4);
+        iter!(String, buf_iter, self.sImageType, 4); //[u8; 4],
+        iter!(f64, buf_iter, self.dGantryRtn, 8);
+        iter!(f64, buf_iter, self.dSAD, 8);
+        iter!(f64, buf_iter, self.dSFD, 8);
+        iter!(f64, buf_iter, self.dCollX1, 8);
+        iter!(f64, buf_iter, self.dCollX2, 8);
+        iter!(f64, buf_iter, self.dCollY1, 8);
+        iter!(f64, buf_iter, self.dCollY2, 8);
+        iter!(f64, buf_iter, self.dCollRtn, 8);
+        iter!(f64, buf_iter, self.dFieldX, 8);
+        iter!(f64, buf_iter, self.dFieldY, 8);
+        iter!(f64, buf_iter, self.dBladeX1, 8);
+        iter!(f64, buf_iter, self.dBladeX2, 8);
+        iter!(f64, buf_iter, self.dBladeY1, 8);
+        iter!(f64, buf_iter, self.dBladeY2, 8);
+        iter!(f64, buf_iter, self.dIDUPosLng, 8);
+        iter!(f64, buf_iter, self.dIDUPosLat, 8);
+        iter!(f64, buf_iter, self.dIDUPosVrt, 8);
+        iter!(f64, buf_iter, self.dIDUPosRtn, 8);
+        iter!(f64, buf_iter, self.dPatientSupportAngle, 8);
+        iter!(f64, buf_iter, self.dTableTopEccentricAngle, 8);
+        iter!(f64, buf_iter, self.dCouchVrt, 8);
+        iter!(f64, buf_iter, self.dCouchLng, 8);
+        iter!(f64, buf_iter, self.dCouchLat, 8);
+        iter!(f64, buf_iter, self.dIDUResolutionX, 8);
+        iter!(f64, buf_iter, self.dIDUResolutionY, 8);
+        iter!(f64, buf_iter, self.dImageResolutionX, 8);
+        iter!(f64, buf_iter, self.dImageResolutionY, 8);
+        iter!(f64, buf_iter, self.dEnergy, 8);
+        iter!(f64, buf_iter, self.dDoseRate, 8);
+        iter!(f64, buf_iter, self.dXRayKV, 8);
+        iter!(f64, buf_iter, self.dXRayMA, 8);
+        iter!(f64, buf_iter, self.dMetersetExposure, 8);
+        iter!(f64, buf_iter, self.dAcqAdjustment, 8);
+        iter!(f64, buf_iter, self.dCTProjectionAngle, 8);
+        iter!(f64, buf_iter, self.dCTNormChamber, 8);
+        iter!(f64, buf_iter, self.dGatingTimeTag, 8);
+        iter!(f64, buf_iter, self.dGating4DInfoX, 8);
+        iter!(f64, buf_iter, self.dGating4DInfoY, 8);
+        iter!(f64, buf_iter, self.dGating4DInfoZ, 8);
+        iter!(f64, buf_iter, self.dGating4DInfoTime, 8);
+        // );
+        return buf;
+    }
+}
 
 pub fn print_header(f: &mut File) -> Result<(), io::Error> {
     let raw = read_header_to_raw(f)?;
     //let hnd_head = parse_header(&raw)?;
     let hnd_head: hnd_header_t = raw.into();
-    
+
     //println!("DEBUG: {:?}", hnd_head);
     println!("{}", hnd_head);
 
@@ -307,12 +450,7 @@ fn write_header(f: &mut File, h: &hnd_header_t) -> Result<(), io::Error> {
     Ok(())
 }
 
-
-fn parse_data(
-    raw: &hnd_data_t,
-    width: usize,
-    height: usize,
-) -> Result<Vec<u32>, ImageConvError> {
+fn parse_data(raw: &hnd_data_t, width: usize, height: usize) -> Result<Vec<u32>, ImageConvError> {
     let mut output = Vec::with_capacity(width * height * 4);
 
     // Read LUT
@@ -406,11 +544,13 @@ impl TryInto<RawImage<u32>> for HndImage {
         let height = self.height();
         let data = parse_data(&self.data, width, height)?;
 
-        Ok(RawImage{width: width, height: height, data})    
+        Ok(RawImage {
+            width: width,
+            height: height,
+            data,
+        })
     }
-
 }
-
 
 //fn from_raw(img: &[u8], width: u32, height: u32) -> Result<Box> {}
 
@@ -492,5 +632,30 @@ mod tests {
             assert_eq!(x, y);
             print!(".");
         }
+    }
+
+    #[test]
+    fn test_header_convertion() {
+        use crate::*;
+        let test_file_1 = String::from("test/test_data_1.hnd");
+        let mut f = std::fs::File::open(test_file_1).unwrap();
+        let header: hnd_header_t = crate::read_header(&mut f).unwrap();
+        let raw_header_buf: hnd_header_raw_t = header.clone().into();
+        let header2: hnd_header_t = raw_header_buf.clone().into();
+
+        println!("{:?}", header);
+        println!("{:?}", header2);
+        raw_header_buf
+            .iter()
+            .for_each(|item| print!("{:2X} ", item));
+        println!();
+        println!("{:?} --- {:?}", header.sFileType, header2.sFileType);
+        assert_eq!(header.sFileType, header2.sFileType);
+        assert_eq!(header.sCreationDate, header2.sCreationDate);
+        assert_eq!(header.FileLength, 3146752);
+        assert_eq!(header.SizeX, 1024);
+        assert_eq!(header.SizeY, 768);
+        assert_eq!(header.dCTProjectionAngle, -71.01111111111112);
+        assert_eq!(header.dCTNormChamber, 1164.0);
     }
 }
