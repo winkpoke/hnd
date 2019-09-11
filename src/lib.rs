@@ -678,6 +678,5 @@ mod tests {
         assert_eq!(header2.SizeY, 768);
         assert_eq!(header2.dCTProjectionAngle, -71.01111111111112);
         assert_eq!(header2.dCTNormChamber, 1164.0);
-        panic!();
     }
 }
