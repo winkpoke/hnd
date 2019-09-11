@@ -6,6 +6,22 @@ use std::fs::File;
 use std::io;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 
+const RAWMEMDATA_DEFAULT_SIZE: usize = 1024;
+struct RawMemData {
+    data: Box<[u8]>,
+    len: usize,
+}
+
+impl RawMemData {
+    fn new() -> RawMemData {
+        let mut v = Vec::with_capacity(RAWMEMDATA_DEFAULT_SIZE);
+        RawMemData {
+            data: v.into_boxed_slice(),
+            len: RAWMEMDATA_DEFAULT_SIZE,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum ImageConvError {}
 
@@ -71,6 +87,49 @@ pub struct hnd_header_t {
     dGating4DInfoY: f64,
     dGating4DInfoZ: f64,
     dGating4DInfoTime: f64,
+}
+
+struct Buf {
+    data: [u8; 1024],
+    pos: usize,
+}
+
+impl Buf {
+    fn new() -> Buf {
+        Buf {
+            data: [0; 1024],
+            pos: 0,
+        }
+    }
+    fn write_string(&mut self, data: &str, size: usize) {
+        self.data[self.pos..]
+            .iter_mut()
+            .zip(
+                data.as_bytes()
+                    .iter()
+                    .chain(Vec::with_capacity(size).iter())
+                    .take(size),
+            )
+            .for_each(|(to, from)| *to = *from);
+        self.pos += size;
+    }
+    fn write_u32(&mut self, data: u32) {
+        let size: usize = 4;
+        self.data[self.pos..]
+            .iter_mut()
+            .zip(data.to_ne_bytes().iter().take(size))
+            .for_each(|(to, from)| *to = *from);
+        self.pos += size;
+    }
+
+    fn write_f64(&mut self, data: f64) {
+        let size: usize = 8;
+        self.data[self.pos..]
+            .iter_mut()
+            .zip(data.to_bits().to_ne_bytes().iter().take(size))
+            .for_each(|(to, from)| *to = *from);
+        self.pos += size;
+    }
 }
 
 type hnd_header_raw_t = [u8; 1024];
@@ -280,170 +339,73 @@ impl Into<hnd_header_t> for hnd_header_raw_t {
     }
 }
 
-// fn copy_string_by_size<'a>(buf: &'a mut [u8], s: &str, start: usize, len: usize) -> usize {
-//     let mut tmp = s.into_bytes();
-//     tmp.resize(len, 0);
-//     buf[start..start + len].copy_from_slice(&tmp);
-//     return start + len;
-// }
-
-// use std::iter::{Chain, Take};
-// use std::str::Bytes;
-// fn str_to_iter<const N: usize>(s: &str) -> Take<T> {
-//     s.bytes().chain([0; N].iter()).take(N)
-// }
-//
-struct Buf {
-    data: [u8; 1024],
-    pos: usize,
-}
-
-impl Buf {
-    fn new() -> Buf {
-        Buf {
-            data: [0; 1024],
-            pos: 0,
-        }
-    }
-}
-
-#[macro_export]
-macro_rules! iter {
-    ( String , $buf_iter: expr, $name: expr , $n: expr ) => {
-        // $name
-        //     .clone()
-        //     .into_bytes()
-        //     .iter()
-        //     .chain([0; $n].iter())
-        //     .take($n);
-        print!("{} ----> ", $name);
-        let tmp_internal_8293 = $name.into_bytes();
-        let mut i = 0;
-        $buf_iter.data[$buf_iter.pos..]
-            .iter_mut()
-            .zip(tmp_internal_8293.iter().chain([0; $n].iter()).take($n))
-            .for_each(|(to, from)| {
-                print!("{:X} ", *from);
-                i += 1;
-                *to = *from
-            });
-        println!(" --- {}", i);
-        $buf_iter.pos += $n
-    };
-
-    ( u32 , $buf_iter: expr , $name: expr , $n: expr ) => {
-        // $name.to_ne_bytes().iter().take(4);
-        print!("{} ----> ", $name);
-        let tmp_internal_7293 = $name.to_ne_bytes();
-        let mut i = 0;
-        $buf_iter.data[$buf_iter.pos..]
-            .iter_mut()
-            .zip(tmp_internal_7293.iter().take(4))
-            .for_each(|(to, from)| {
-                print!("{:X} ", *from);
-                i += 1;
-                *to = *from
-            });
-        println!(" --- {}", i);
-        $buf_iter.pos += 4;
-    };
-
-    ( f64 , $buf_iter: expr , $name: expr , $n: expr ) => {
-        // $name.to_bits().to_ne_bytes().iter().take(8);
-        let tmp_internal_8693 = $name.to_bits().to_ne_bytes();
-        $buf_iter.data[$buf_iter.pos..]
-            .iter_mut()
-            .zip(tmp_internal_8693.iter().take(8))
-            .for_each(|(to, from)| *to = *from);
-        $buf_iter.pos += 8;
-    };
-}
-
-macro_rules! chain {
-    ( $e1: expr , $( $e: expr ),* ) => {
-        {
-            let mut tmp = $e1;
-            $(
-                tmp.chain($e);
-            )*
-            tmp
-        }
-    };
-}
-use std::iter::Take;
 impl Into<hnd_header_raw_t> for hnd_header_t {
     fn into(self) -> hnd_header_raw_t {
-        let mut buf_iter = Buf::new();
-        // let mut buf: hnd_header_raw_t = [0; 1024];
+        let mut buf = Buf::new();
 
-        // let buf_iter = &mut buf.iter_mut();
-        // let tmp = self.sFileType.into_bytes();
-        // buf_iter
-        //     .zip(tmp.iter().chain([0; 32].iter()).take(32))
-        //     .for_each(|(to, from)| *to = *from);
-        // let mut src = chain!(
-        iter!(String, buf_iter, self.sFileType, 32);
-        iter!(u32, buf_iter, self.FileLength, 4);
-        iter!(String, buf_iter, self.chasChecksumSpec, 4);
-        iter!(u32, buf_iter, self.nCheckSum, 4);
-        iter!(String, buf_iter, self.sCreationDate, 8);
-        iter!(String, buf_iter, self.sCreationTime, 8);
-        iter!(String, buf_iter, self.sPatientID, 16); //[u8; 16],
-        iter!(u32, buf_iter, self.nPatientSer, 4);
-        iter!(String, buf_iter, self.sSeriesID, 16); //[u8; 16],
-        iter!(u32, buf_iter, self.nSeriesSer, 4);
-        iter!(String, buf_iter, self.sSliceID, 16); //[u8; 16],
-        iter!(u32, buf_iter, self.nSliceSer, 4);
-        iter!(u32, buf_iter, self.SizeX, 4);
-        iter!(u32, buf_iter, self.SizeY, 4);
-        iter!(f64, buf_iter, self.dSliceZPos, 8);
-        iter!(String, buf_iter, self.sModality, 16); //[u8; 16],
-        iter!(u32, buf_iter, self.nWindow, 4);
-        iter!(u32, buf_iter, self.nLevel, 4);
-        iter!(u32, buf_iter, self.nPixelOffset, 4);
-        iter!(String, buf_iter, self.sImageType, 4); //[u8; 4],
-        iter!(f64, buf_iter, self.dGantryRtn, 8);
-        iter!(f64, buf_iter, self.dSAD, 8);
-        iter!(f64, buf_iter, self.dSFD, 8);
-        iter!(f64, buf_iter, self.dCollX1, 8);
-        iter!(f64, buf_iter, self.dCollX2, 8);
-        iter!(f64, buf_iter, self.dCollY1, 8);
-        iter!(f64, buf_iter, self.dCollY2, 8);
-        iter!(f64, buf_iter, self.dCollRtn, 8);
-        iter!(f64, buf_iter, self.dFieldX, 8);
-        iter!(f64, buf_iter, self.dFieldY, 8);
-        iter!(f64, buf_iter, self.dBladeX1, 8);
-        iter!(f64, buf_iter, self.dBladeX2, 8);
-        iter!(f64, buf_iter, self.dBladeY1, 8);
-        iter!(f64, buf_iter, self.dBladeY2, 8);
-        iter!(f64, buf_iter, self.dIDUPosLng, 8);
-        iter!(f64, buf_iter, self.dIDUPosLat, 8);
-        iter!(f64, buf_iter, self.dIDUPosVrt, 8);
-        iter!(f64, buf_iter, self.dIDUPosRtn, 8);
-        iter!(f64, buf_iter, self.dPatientSupportAngle, 8);
-        iter!(f64, buf_iter, self.dTableTopEccentricAngle, 8);
-        iter!(f64, buf_iter, self.dCouchVrt, 8);
-        iter!(f64, buf_iter, self.dCouchLng, 8);
-        iter!(f64, buf_iter, self.dCouchLat, 8);
-        iter!(f64, buf_iter, self.dIDUResolutionX, 8);
-        iter!(f64, buf_iter, self.dIDUResolutionY, 8);
-        iter!(f64, buf_iter, self.dImageResolutionX, 8);
-        iter!(f64, buf_iter, self.dImageResolutionY, 8);
-        iter!(f64, buf_iter, self.dEnergy, 8);
-        iter!(f64, buf_iter, self.dDoseRate, 8);
-        iter!(f64, buf_iter, self.dXRayKV, 8);
-        iter!(f64, buf_iter, self.dXRayMA, 8);
-        iter!(f64, buf_iter, self.dMetersetExposure, 8);
-        iter!(f64, buf_iter, self.dAcqAdjustment, 8);
-        iter!(f64, buf_iter, self.dCTProjectionAngle, 8);
-        iter!(f64, buf_iter, self.dCTNormChamber, 8);
-        iter!(f64, buf_iter, self.dGatingTimeTag, 8);
-        iter!(f64, buf_iter, self.dGating4DInfoX, 8);
-        iter!(f64, buf_iter, self.dGating4DInfoY, 8);
-        iter!(f64, buf_iter, self.dGating4DInfoZ, 8);
-        iter!(f64, buf_iter, self.dGating4DInfoTime, 8);
+        // iter!(String, buf_iter, self.sFileType, 32);
+        buf.write_string(&self.sFileType, 32);
+        buf.write_u32(self.FileLength);
+        buf.write_string(&self.chasChecksumSpec, 4);
+        buf.write_u32(self.nCheckSum);
+        buf.write_string(&self.sCreationDate, 8);
+        buf.write_string(&self.sCreationTime, 8);
+        buf.write_string(&self.sPatientID, 16); //[u8; 16],
+        buf.write_u32(self.nPatientSer);
+        buf.write_string(&self.sSeriesID, 16); //[u8; 16],
+        buf.write_u32(self.nSeriesSer);
+        buf.write_string(&self.sSliceID, 16); //[u8; 16],
+        buf.write_u32(self.nSliceSer);
+        buf.write_u32(self.SizeX);
+        buf.write_u32(self.SizeY);
+        buf.write_f64(self.dSliceZPos);
+        buf.write_string(&self.sModality, 16); //[u8; 16],
+        buf.write_u32(self.nWindow);
+        buf.write_u32(self.nLevel);
+        buf.write_u32(self.nPixelOffset);
+        buf.write_string(&self.sImageType, 4); //[u8; 4],
+        buf.write_f64(self.dGantryRtn);
+        buf.write_f64(self.dSAD);
+        buf.write_f64(self.dSFD);
+        buf.write_f64(self.dCollX1);
+        buf.write_f64(self.dCollX2);
+        buf.write_f64(self.dCollY1);
+        buf.write_f64(self.dCollY2);
+        buf.write_f64(self.dCollRtn);
+        buf.write_f64(self.dFieldX);
+        buf.write_f64(self.dFieldY);
+        buf.write_f64(self.dBladeX1);
+        buf.write_f64(self.dBladeX2);
+        buf.write_f64(self.dBladeY1);
+        buf.write_f64(self.dBladeY2);
+        buf.write_f64(self.dIDUPosLng);
+        buf.write_f64(self.dIDUPosLat);
+        buf.write_f64(self.dIDUPosVrt);
+        buf.write_f64(self.dIDUPosRtn);
+        buf.write_f64(self.dPatientSupportAngle);
+        buf.write_f64(self.dTableTopEccentricAngle);
+        buf.write_f64(self.dCouchVrt);
+        buf.write_f64(self.dCouchLng);
+        buf.write_f64(self.dCouchLat);
+        buf.write_f64(self.dIDUResolutionX);
+        buf.write_f64(self.dIDUResolutionY);
+        buf.write_f64(self.dImageResolutionX);
+        buf.write_f64(self.dImageResolutionY);
+        buf.write_f64(self.dEnergy);
+        buf.write_f64(self.dDoseRate);
+        buf.write_f64(self.dXRayKV);
+        buf.write_f64(self.dXRayMA);
+        buf.write_f64(self.dMetersetExposure);
+        buf.write_f64(self.dAcqAdjustment);
+        buf.write_f64(self.dCTProjectionAngle);
+        buf.write_f64(self.dCTNormChamber);
+        buf.write_f64(self.dGatingTimeTag);
+        buf.write_f64(self.dGating4DInfoX);
+        buf.write_f64(self.dGating4DInfoY);
+        buf.write_f64(self.dGating4DInfoZ);
+        buf.write_f64(self.dGating4DInfoTime);
         // );
-        return buf_iter.data;
+        return buf.data;
     }
 }
 
