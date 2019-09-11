@@ -293,6 +293,20 @@ impl Into<hnd_header_t> for hnd_header_raw_t {
 //     s.bytes().chain([0; N].iter()).take(N)
 // }
 //
+struct Buf {
+    data: [u8; 1024],
+    pos: usize,
+}
+
+impl Buf {
+    fn new() -> Buf {
+        Buf {
+            data: [0; 1024],
+            pos: 0,
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! iter {
     ( String , $buf_iter: expr, $name: expr , $n: expr ) => {
@@ -305,14 +319,16 @@ macro_rules! iter {
         print!("{} ----> ", $name);
         let tmp_internal_8293 = $name.into_bytes();
         let mut i = 0;
-        $buf_iter
-            .zip(tmp_internal_8293.iter().chain([0; $n].iter()).take($n - 1))
+        $buf_iter.data[$buf_iter.pos..]
+            .iter_mut()
+            .zip(tmp_internal_8293.iter().chain([0; $n].iter()).take($n))
             .for_each(|(to, from)| {
                 print!("{:X} ", *from);
                 i += 1;
                 *to = *from
             });
         println!(" --- {}", i);
+        $buf_iter.pos += $n
     };
 
     ( u32 , $buf_iter: expr , $name: expr , $n: expr ) => {
@@ -320,22 +336,26 @@ macro_rules! iter {
         print!("{} ----> ", $name);
         let tmp_internal_7293 = $name.to_ne_bytes();
         let mut i = 0;
-        $buf_iter
-            .zip(tmp_internal_7293.iter().take(3))
+        $buf_iter.data[$buf_iter.pos..]
+            .iter_mut()
+            .zip(tmp_internal_7293.iter().take(4))
             .for_each(|(to, from)| {
                 print!("{:X} ", *from);
                 i += 1;
                 *to = *from
             });
         println!(" --- {}", i);
+        $buf_iter.pos += 4;
     };
 
     ( f64 , $buf_iter: expr , $name: expr , $n: expr ) => {
         // $name.to_bits().to_ne_bytes().iter().take(8);
         let tmp_internal_8693 = $name.to_bits().to_ne_bytes();
-        $buf_iter
-            .zip(tmp_internal_8693.iter().take(7))
+        $buf_iter.data[$buf_iter.pos..]
+            .iter_mut()
+            .zip(tmp_internal_8693.iter().take(8))
             .for_each(|(to, from)| *to = *from);
+        $buf_iter.pos += 8;
     };
 }
 
@@ -353,9 +373,10 @@ macro_rules! chain {
 use std::iter::Take;
 impl Into<hnd_header_raw_t> for hnd_header_t {
     fn into(self) -> hnd_header_raw_t {
-        let mut buf: hnd_header_raw_t = [0; 1024];
+        let mut buf_iter = Buf::new();
+        // let mut buf: hnd_header_raw_t = [0; 1024];
 
-        let buf_iter = &mut buf.iter_mut();
+        // let buf_iter = &mut buf.iter_mut();
         // let tmp = self.sFileType.into_bytes();
         // buf_iter
         //     .zip(tmp.iter().chain([0; 32].iter()).take(32))
@@ -422,7 +443,7 @@ impl Into<hnd_header_raw_t> for hnd_header_t {
         iter!(f64, buf_iter, self.dGating4DInfoZ, 8);
         iter!(f64, buf_iter, self.dGating4DInfoTime, 8);
         // );
-        return buf;
+        return buf_iter.data;
     }
 }
 
@@ -652,10 +673,11 @@ mod tests {
         println!("{:?} --- {:?}", header.sFileType, header2.sFileType);
         assert_eq!(header.sFileType, header2.sFileType);
         assert_eq!(header.sCreationDate, header2.sCreationDate);
-        assert_eq!(header.FileLength, 3146752);
-        assert_eq!(header.SizeX, 1024);
-        assert_eq!(header.SizeY, 768);
-        assert_eq!(header.dCTProjectionAngle, -71.01111111111112);
-        assert_eq!(header.dCTNormChamber, 1164.0);
+        assert_eq!(header2.FileLength, 3146752);
+        assert_eq!(header2.SizeX, 1024);
+        assert_eq!(header2.SizeY, 768);
+        assert_eq!(header2.dCTProjectionAngle, -71.01111111111112);
+        assert_eq!(header2.dCTNormChamber, 1164.0);
+        panic!();
     }
 }
