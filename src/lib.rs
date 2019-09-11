@@ -6,7 +6,7 @@ use std::fs::File;
 use std::io;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 
-const RAWMEMDATA_DEFAULT_SIZE = 1024;
+const RAWMEMDATA_DEFAULT_SIZE: usize = 1024;
 struct RawMemData {
     data: Box<[u8]>,
     len: usize,
@@ -15,7 +15,10 @@ struct RawMemData {
 impl RawMemData {
     fn new() -> RawMemData {
         let mut v = Vec::with_capacity(RAWMEMDATA_DEFAULT_SIZE);
-        RawMemData {data: v.into_boxed_slice(), len, RAWMEMDATA_DEFAULT_SIZE}
+        RawMemData {
+            data: v.into_boxed_slice(),
+            len: RAWMEMDATA_DEFAULT_SIZE,
+        }
     }
 }
 
@@ -292,20 +295,6 @@ impl Into<hnd_header_t> for hnd_header_raw_t {
         }
     }
 }
-
-// fn copy_string_by_size<'a>(buf: &'a mut [u8], s: &str, start: usize, len: usize) -> usize {
-//     let mut tmp = s.into_bytes();
-//     tmp.resize(len, 0);
-//     buf[start..start + len].copy_from_slice(&tmp);
-//     return start + len;
-// }
-
-// use std::iter::{Chain, Take};
-// use std::str::Bytes;
-// fn str_to_iter<const N: usize>(s: &str) -> Take<T> {
-//     s.bytes().chain([0; N].iter()).take(N)
-// }
-//
 struct Buf {
     data: [u8; 1024],
     pos: usize,
@@ -323,46 +312,25 @@ impl Buf {
 #[macro_export]
 macro_rules! iter {
     ( String , $buf_iter: expr, $name: expr , $n: expr ) => {
-        // $name
-        //     .clone()
-        //     .into_bytes()
-        //     .iter()
-        //     .chain([0; $n].iter())
-        //     .take($n);
-        print!("{} ----> ", $name);
         let tmp_internal_8293 = $name.into_bytes();
         let mut i = 0;
         $buf_iter.data[$buf_iter.pos..]
             .iter_mut()
             .zip(tmp_internal_8293.iter().chain([0; $n].iter()).take($n))
-            .for_each(|(to, from)| {
-                print!("{:X} ", *from);
-                i += 1;
-                *to = *from
-            });
-        println!(" --- {}", i);
+            .for_each(|(to, from)| *to = *from);
         $buf_iter.pos += $n
     };
 
     ( u32 , $buf_iter: expr , $name: expr , $n: expr ) => {
-        // $name.to_ne_bytes().iter().take(4);
-        print!("{} ----> ", $name);
         let tmp_internal_7293 = $name.to_ne_bytes();
-        let mut i = 0;
         $buf_iter.data[$buf_iter.pos..]
             .iter_mut()
             .zip(tmp_internal_7293.iter().take(4))
-            .for_each(|(to, from)| {
-                print!("{:X} ", *from);
-                i += 1;
-                *to = *from
-            });
-        println!(" --- {}", i);
+            .for_each(|(to, from)| *to = *from);
         $buf_iter.pos += 4;
     };
 
     ( f64 , $buf_iter: expr , $name: expr , $n: expr ) => {
-        // $name.to_bits().to_ne_bytes().iter().take(8);
         let tmp_internal_8693 = $name.to_bits().to_ne_bytes();
         $buf_iter.data[$buf_iter.pos..]
             .iter_mut()
@@ -387,14 +355,7 @@ use std::iter::Take;
 impl Into<hnd_header_raw_t> for hnd_header_t {
     fn into(self) -> hnd_header_raw_t {
         let mut buf_iter = Buf::new();
-        // let mut buf: hnd_header_raw_t = [0; 1024];
 
-        // let buf_iter = &mut buf.iter_mut();
-        // let tmp = self.sFileType.into_bytes();
-        // buf_iter
-        //     .zip(tmp.iter().chain([0; 32].iter()).take(32))
-        //     .for_each(|(to, from)| *to = *from);
-        // let mut src = chain!(
         iter!(String, buf_iter, self.sFileType, 32);
         iter!(u32, buf_iter, self.FileLength, 4);
         iter!(String, buf_iter, self.chasChecksumSpec, 4);
