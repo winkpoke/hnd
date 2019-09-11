@@ -101,6 +101,36 @@ impl Buf {
             pos: 0,
         }
     }
+
+    fn from(d: [u8; 1024]) -> Buf {
+        Buf { data: d, pos: 0 }
+    }
+
+    fn read_string(&mut self, size: usize) -> String {
+        let (start, end) = (self.pos, self.pos + size);
+        self.pos += size;
+        std::str::from_utf8(&self.data[start..end])
+            .unwrap()
+            .trim_end_matches('\u{0}')
+            .to_string()
+    }
+
+    fn read_u32(&mut self) -> u32 {
+        let size: usize = 4;
+        let (start, end) = (self.pos, self.pos + size);
+        self.pos += size;
+        u32::from_ne_bytes(self.data[start..end].try_into().unwrap())
+    }
+
+    fn read_f64(&mut self) -> f64 {
+        let size: usize = 8;
+        let (start, end) = (self.pos, self.pos + size);
+        self.pos += size;
+        f64::from_bits(u64::from_ne_bytes(
+            self.data[start..end].try_into().unwrap(),
+        ))
+    }
+
     fn write_string(&mut self, data: &str, size: usize) {
         self.data[self.pos..]
             .iter_mut()
@@ -250,91 +280,71 @@ pub fn read_header_to_raw(f: &File) -> Result<hnd_header_raw_t, io::Error> {
     return Ok(buf);
 }
 
-fn parse_u32(buf: &[u8], pos: &mut usize) -> u32 {
-    let (start, end) = (*pos, *pos + 4);
-    *pos += 4;
-    u32::from_ne_bytes(buf[start..end].try_into().unwrap())
-}
-
-fn parse_f64(buf: &[u8], pos: &mut usize) -> f64 {
-    let (start, end) = (*pos, *pos + 8);
-    *pos += 8;
-    f64::from_bits(u64::from_ne_bytes(buf[start..end].try_into().unwrap()))
-}
-
-fn parse_string(buf: &[u8], pos: &mut usize, len: usize) -> String {
-    let (start, end) = (*pos, *pos + len);
-    *pos += len;
-    std::str::from_utf8(&buf[start..end])
-        .unwrap()
-        .trim_end_matches('\u{0}')
-        .to_string()
-}
-
 impl Into<hnd_header_t> for hnd_header_raw_t {
     fn into(self) -> hnd_header_t {
         let mut pos: usize = 0;
+        let mut buf = Buf::from(self);
         hnd_header_t {
-            sFileType: { parse_string(&self, &mut pos, 32) },
-            FileLength: { parse_u32(&self, &mut pos) },
-            chasChecksumSpec: { parse_string(&self, &mut pos, 4) },
-            nCheckSum: { parse_u32(&self, &mut pos) },
-            sCreationDate: { parse_string(&self, &mut pos, 8) },
-            sCreationTime: { parse_string(&self, &mut pos, 8) },
-            sPatientID: { parse_string(&self, &mut pos, 16) },
-            nPatientSer: { parse_u32(&self, &mut pos) },
-            sSeriesID: { parse_string(&self, &mut pos, 16) },
-            nSeriesSer: { parse_u32(&self, &mut pos) },
-            sSliceID: { parse_string(&self, &mut pos, 16) },
-            nSliceSer: { parse_u32(&self, &mut pos) },
-            SizeX: { parse_u32(&self, &mut pos) },
-            SizeY: { parse_u32(&self, &mut pos) },
-            dSliceZPos: { parse_f64(&self, &mut pos) },
-            sModality: { parse_string(&self, &mut pos, 16) },
-            nWindow: { parse_u32(&self, &mut pos) },
-            nLevel: { parse_u32(&self, &mut pos) },
-            nPixelOffset: { parse_u32(&self, &mut pos) },
-            sImageType: { parse_string(&self, &mut pos, 4) },
-            dGantryRtn: { parse_f64(&self, &mut pos) }, //f64,
-            dSAD: { parse_f64(&self, &mut pos) },       //f64,
-            dSFD: { parse_f64(&self, &mut pos) },       //f64,
-            dCollX1: { parse_f64(&self, &mut pos) },    //f64,
-            dCollX2: { parse_f64(&self, &mut pos) },    //f64,
-            dCollY1: { parse_f64(&self, &mut pos) },    //f64,
-            dCollY2: { parse_f64(&self, &mut pos) },    //f64,
-            dCollRtn: { parse_f64(&self, &mut pos) },   //f64,
-            dFieldX: { parse_f64(&self, &mut pos) },    //f64,
-            dFieldY: { parse_f64(&self, &mut pos) },    //f64,
-            dBladeX1: { parse_f64(&self, &mut pos) },   //f64,
-            dBladeX2: { parse_f64(&self, &mut pos) },   //f64,
-            dBladeY1: { parse_f64(&self, &mut pos) },   //f64,
-            dBladeY2: { parse_f64(&self, &mut pos) },   //f64,
-            dIDUPosLng: { parse_f64(&self, &mut pos) }, //f64,
-            dIDUPosLat: { parse_f64(&self, &mut pos) }, //f64,
-            dIDUPosVrt: { parse_f64(&self, &mut pos) }, //f64,
-            dIDUPosRtn: { parse_f64(&self, &mut pos) }, //f64,
-            dPatientSupportAngle: { parse_f64(&self, &mut pos) }, //f64,
-            dTableTopEccentricAngle: { parse_f64(&self, &mut pos) }, //f64,
-            dCouchVrt: { parse_f64(&self, &mut pos) },  //f64,
-            dCouchLng: { parse_f64(&self, &mut pos) },  //f64,
-            dCouchLat: { parse_f64(&self, &mut pos) },  //f64,
-            dIDUResolutionX: { parse_f64(&self, &mut pos) }, //f64,
-            dIDUResolutionY: { parse_f64(&self, &mut pos) }, //f64,
-            dImageResolutionX: { parse_f64(&self, &mut pos) }, //f64,
-            dImageResolutionY: { parse_f64(&self, &mut pos) }, //f64,
-            dEnergy: { parse_f64(&self, &mut pos) },    //f64,
-            dDoseRate: { parse_f64(&self, &mut pos) },  //f64,
-            dXRayKV: { parse_f64(&self, &mut pos) },    //f64,
-            dXRayMA: { parse_f64(&self, &mut pos) },    //f64,
-            dMetersetExposure: { parse_f64(&self, &mut pos) }, //f64,
-            dAcqAdjustment: { parse_f64(&self, &mut pos) }, //f64,
-            dCTProjectionAngle: { parse_f64(&self, &mut pos) }, //f64,
-            dCTNormChamber: { parse_f64(&self, &mut pos) }, //f64,
-            dGatingTimeTag: { parse_f64(&self, &mut pos) }, //f64,
-            dGating4DInfoX: { parse_f64(&self, &mut pos) }, //f64,
-            dGating4DInfoY: { parse_f64(&self, &mut pos) }, //f64,
-            dGating4DInfoZ: { parse_f64(&self, &mut pos) }, //f64,
-            dGating4DInfoTime: { parse_f64(&self, &mut pos) }, //f64,
+            sFileType: buf.read_string(32),
+            FileLength: buf.read_u32(),
+            chasChecksumSpec: buf.read_string(4),
+            nCheckSum: buf.read_u32(),
+            sCreationDate: buf.read_string(8),
+            sCreationTime: buf.read_string(8),
+            sPatientID: buf.read_string(16),
+            nPatientSer: buf.read_u32(),
+            sSeriesID: buf.read_string(16),
+            nSeriesSer: buf.read_u32(),
+            sSliceID: buf.read_string(16),
+            nSliceSer: buf.read_u32(),
+            SizeX: buf.read_u32(),
+            SizeY: buf.read_u32(),
+            dSliceZPos: buf.read_f64(),
+            sModality: buf.read_string(16),
+            nWindow: buf.read_u32(),
+            nLevel: buf.read_u32(),
+            nPixelOffset: buf.read_u32(),
+            sImageType: buf.read_string(4),
+            dGantryRtn: buf.read_f64(),              //f64,
+            dSAD: buf.read_f64(),                    //f64,
+            dSFD: buf.read_f64(),                    //f64,
+            dCollX1: buf.read_f64(),                 //f64,
+            dCollX2: buf.read_f64(),                 //f64,
+            dCollY1: buf.read_f64(),                 //f64,
+            dCollY2: buf.read_f64(),                 //f64,
+            dCollRtn: buf.read_f64(),                //f64,
+            dFieldX: buf.read_f64(),                 //f64,
+            dFieldY: buf.read_f64(),                 //f64,
+            dBladeX1: buf.read_f64(),                //f64,
+            dBladeX2: buf.read_f64(),                //f64,
+            dBladeY1: buf.read_f64(),                //f64,
+            dBladeY2: buf.read_f64(),                //f64,
+            dIDUPosLng: buf.read_f64(),              //f64,
+            dIDUPosLat: buf.read_f64(),              //f64,
+            dIDUPosVrt: buf.read_f64(),              //f64,
+            dIDUPosRtn: buf.read_f64(),              //f64,
+            dPatientSupportAngle: buf.read_f64(),    //f64,
+            dTableTopEccentricAngle: buf.read_f64(), //f64,
+            dCouchVrt: buf.read_f64(),               //f64,
+            dCouchLng: buf.read_f64(),               //f64,
+            dCouchLat: buf.read_f64(),               //f64,
+            dIDUResolutionX: buf.read_f64(),         //f64,
+            dIDUResolutionY: buf.read_f64(),         //f64,
+            dImageResolutionX: buf.read_f64(),       //f64,
+            dImageResolutionY: buf.read_f64(),       //f64,
+            dEnergy: buf.read_f64(),                 //f64,
+            dDoseRate: buf.read_f64(),               //f64,
+            dXRayKV: buf.read_f64(),                 //f64,
+            dXRayMA: buf.read_f64(),                 //f64,
+            dMetersetExposure: buf.read_f64(),       //f64,
+            dAcqAdjustment: buf.read_f64(),          //f64,
+            dCTProjectionAngle: buf.read_f64(),      //f64,
+            dCTNormChamber: buf.read_f64(),          //f64,
+            dGatingTimeTag: buf.read_f64(),          //f64,
+            dGating4DInfoX: buf.read_f64(),          //f64,
+            dGating4DInfoY: buf.read_f64(),          //f64,
+            dGating4DInfoZ: buf.read_f64(),          //f64,
+            dGating4DInfoTime: buf.read_f64(),       //f64,
         }
     }
 }
