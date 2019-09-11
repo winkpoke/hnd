@@ -6,6 +6,19 @@ use std::fs::File;
 use std::io;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 
+const RAWMEMDATA_DEFAULT_SIZE = 1024;
+struct RawMemData {
+    data: Box<[u8]>,
+    len: usize,
+}
+
+impl RawMemData {
+    fn new() -> RawMemData {
+        let mut v = Vec::with_capacity(RAWMEMDATA_DEFAULT_SIZE);
+        RawMemData {data: v.into_boxed_slice(), len, RAWMEMDATA_DEFAULT_SIZE}
+    }
+}
+
 #[derive(Debug)]
 pub enum ImageConvError {}
 
@@ -678,6 +691,5 @@ mod tests {
         assert_eq!(header2.SizeY, 768);
         assert_eq!(header2.dCTProjectionAngle, -71.01111111111112);
         assert_eq!(header2.dCTNormChamber, 1164.0);
-        panic!();
     }
 }
