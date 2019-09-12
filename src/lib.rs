@@ -23,7 +23,9 @@ impl RawMemData {
 }
 
 #[derive(Debug)]
-pub enum ImageConvError {}
+pub enum ImageConvError {
+    SomeErr,
+}
 
 #[derive(Default, Debug, Clone)]
 pub struct hnd_header_t {
@@ -439,8 +441,63 @@ pub fn read_header(f: &mut File) -> Result<hnd_header_t, io::Error> {
 }
 
 fn write_header(f: &mut File, h: &hnd_header_t) -> Result<(), io::Error> {
-    f.write(h.sFileType.as_ref());
+    f.write(h.sFileType.as_ref())?;
     Ok(())
+}
+
+struct LutIter<'a> {
+    table: &'a [u8],
+    size: usize,
+    pos: usize,
+    idx: usize,
+    offset: usize,
+}
+
+impl<'a> LutIter<'a> {
+    fn new(part: &'a [u8], size: usize) -> LutIter<'a> {
+        LutIter {
+            table: part,
+            size: size,
+            pos: 0,
+            idx: 0,
+            offset: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for LutIter<'a> {
+    type Item = u8;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos < self.size {
+            self.pos += 1;
+            let v = match self.offset {
+                0 => {
+                    self.offset += 1;
+                    self.table[self.idx] & 0x03
+                }
+                1 => {
+                    self.offset += 1;
+                    (self.table[self.idx] & 0x0c) >> 2
+                }
+                2 => {
+                    self.offset += 1;
+                    (self.table[self.idx] & 0x30) >> 4
+                }
+                3 => {
+                    self.offset = 0;
+                    let idx = self.idx;
+                    self.idx += 1;
+                    (self.table[idx] & 0xc0) >> 6
+                }
+                _ => {
+                    panic!("cannot reach here!");
+                }
+            };
+            Some(v)
+        } else {
+            None
+        }
+    }
 }
 
 fn parse_data(raw: &hnd_data_t, width: usize, height: usize) -> Result<Vec<u32>, ImageConvError> {
@@ -462,55 +519,37 @@ fn parse_data(raw: &hnd_data_t, width: usize, height: usize) -> Result<Vec<u32>,
         output.push(v);
     }
 
+    let lut_size = width * (height - 1) - 1;
+    let mut lut_iter = LutIter::new(&lut, lut_size);
+
     // Decompress the rest
-    let mut lut_idx = 0;
-    let mut lut_off = 0;
     let mut i = width + 1;
     while i < width * height {
+        let v = lut_iter.next();
         let r11 = output[i - width - 1];
         let r12 = output[i - width];
         let r21 = output[i - 1];
-        let v = match lut_off {
-            0 => {
-                lut_off += 1;
-                lut[lut_idx] & 0x03
-            }
-            1 => {
-                lut_off += 1;
-                (lut[lut_idx] & 0x0c) >> 2
-            }
-            2 => {
-                lut_off += 1;
-                (lut[lut_idx] & 0x30) >> 4
-            }
-            3 => {
-                lut_off = 0;
-                let idx = lut_idx;
-                lut_idx += 1;
-                (lut[idx] & 0xc0) >> 6
-            }
-            _ => {
-                panic!("cannot reach here!");
-            }
-        };
         let diff: i32 = match v {
-            0 => {
+            Some(0) => {
                 let start = pos;
                 let end = start + 1;
                 pos += 1;
                 i8::from_ne_bytes(raw[start..end].try_into().unwrap()).into()
             }
-            1 => {
+            Some(1) => {
                 let start = pos;
                 let end = start + 2;
                 pos += 2;
                 i16::from_ne_bytes(raw[start..end].try_into().unwrap()).into()
             }
-            2 => {
+            Some(2) => {
                 let start = pos;
                 let end = start + 4;
                 pos += 4;
                 i16::from_ne_bytes(raw[start..end].try_into().unwrap()).into()
+            }
+            None => {
+                break;
             }
             _ => {
                 panic!("cannot reach here!");
@@ -543,6 +582,22 @@ impl TryInto<RawImage<u32>> for HndImage {
             data,
         })
     }
+}
+
+fn encode_data_u32(
+    img: Vec<u32>,
+    width: usize,
+    height: usize,
+) -> Result<hnd_data_t, ImageConvError> {
+    Err(ImageConvError::SomeErr)
+}
+
+fn encode_data_u16(
+    img: Vec<u32>,
+    width: usize,
+    height: usize,
+) -> Result<hnd_data_t, ImageConvError> {
+    Err(ImageConvError::SomeErr)
 }
 
 //fn from_raw(img: &[u8], width: u32, height: u32) -> Result<Box> {}
