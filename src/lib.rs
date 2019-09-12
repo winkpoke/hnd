@@ -467,6 +467,7 @@ impl<'a> LutIter<'a> {
 
 impl<'a> Iterator for LutIter<'a> {
     type Item = u8;
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos < self.size {
             self.pos += 1;
@@ -499,6 +500,26 @@ impl<'a> Iterator for LutIter<'a> {
         }
     }
 }
+
+// struct LutIterMut<'a> {
+//     table: &'a mut [u8],
+//     size: usize,
+//     pos: usize,
+//     idx: usize,
+//     offset: usize,
+// }
+
+// impl<'a> LutIterMut<'a> {
+//     fn new(part: &'a mut [u8], size: usize) -> LutIterMut<'a> {
+//         LutIterMut {
+//             table: part,
+//             size: size,
+//             pos: 0,
+//             idx: 0,
+//             offset: 0,
+//         }
+//     }
+// }
 
 fn parse_data(raw: &hnd_data_t, width: usize, height: usize) -> Result<Vec<u32>, ImageConvError> {
     let mut output = Vec::with_capacity(width * height * 4);
