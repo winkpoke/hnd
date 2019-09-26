@@ -550,24 +550,23 @@ fn parse_data(raw: &hnd_data_t, width: usize, height: usize) -> Result<Vec<u32>,
         let r11 = output[i - width - 1];
         let r12 = output[i - width];
         let r21 = output[i - 1];
+
+        let start = pos;
         let diff: i32 = match v {
             Some(0) => {
-                let start = pos;
                 let end = start + 1;
                 pos += 1;
                 i8::from_ne_bytes(raw[start..end].try_into().unwrap()).into()
             }
             Some(1) => {
-                let start = pos;
                 let end = start + 2;
                 pos += 2;
                 i16::from_ne_bytes(raw[start..end].try_into().unwrap()).into()
             }
             Some(2) => {
-                let start = pos;
                 let end = start + 4;
                 pos += 4;
-                i16::from_ne_bytes(raw[start..end].try_into().unwrap()).into()
+                i32::from_ne_bytes(raw[start..end].try_into().unwrap()).into()
             }
             None => {
                 break;
