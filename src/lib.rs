@@ -92,20 +92,21 @@ pub struct hnd_header_t {
 }
 
 struct Buf {
-    data: [u8; 1024],
+    data: Vec<u8>,
     pos: usize,
 }
 
 impl Buf {
-    fn new() -> Buf {
-        Buf {
-            data: [0; 1024],
-            pos: 0,
-        }
+    fn new() -> Self {
+        let mut data = Vec::<u8>::with_capacity(1024);
+        data.resize(1024, 0);
+        Self { data: data, pos: 0 }
     }
 
-    fn from(d: [u8; 1024]) -> Buf {
-        Buf { data: d, pos: 0 }
+    fn from(d: &[u8]) -> Self {
+        let mut data = Vec::<u8>::new();
+        data.extend_from_slice(d);
+        Self { data: data, pos: 0 }
     }
 
     fn read_string(&mut self, size: usize) -> String {
@@ -285,7 +286,7 @@ pub fn read_header_to_raw(f: &File) -> Result<hnd_header_raw_t, io::Error> {
 impl Into<hnd_header_t> for hnd_header_raw_t {
     fn into(self) -> hnd_header_t {
         let mut pos: usize = 0;
-        let mut buf = Buf::from(self);
+        let mut buf = Buf::from(&self);
         hnd_header_t {
             sFileType: buf.read_string(32),
             FileLength: buf.read_u32(),
@@ -417,7 +418,9 @@ impl Into<hnd_header_raw_t> for hnd_header_t {
         buf.write_f64(self.dGating4DInfoZ);
         buf.write_f64(self.dGating4DInfoTime);
         // );
-        return buf.data;
+        let mut array: [u8; 1024] = [0; 1024];
+        array.copy_from_slice(&buf.data[0..1024]);
+        array
     }
 }
 
