@@ -612,6 +612,21 @@ fn encode_data_u32(
     width: usize,
     height: usize,
 ) -> Result<hnd_data_t, ImageConvError> {
+    // Initialize the hnd_data_t structure
+    let lut_size: usize = (height - 1) * width / 4;
+    let mut hnd_data: hnd_data_t = Vec::with_capacity(width * height * 4 + lut_size);
+    hnd_data.resize(lut_size, 0);
+
+    // Create LUT
+    let lut = hnd_data.as_mut_slice();
+    assert_eq!(lut.len(), lut_size);
+
+    // Copy the first line and first pixel of the second line of the raw image
+    img[..(width + 1)]
+        .iter()
+        .for_each(|x| x.to_ne_bytes().iter().for_each(|x| hnd_data.push(*x)));
+
+    // Go through the rest of the pixels and encode into hnd format
     Err(ImageConvError::SomeErr)
 }
 
@@ -621,6 +636,20 @@ fn encode_data_u16(
     height: usize,
 ) -> Result<hnd_data_t, ImageConvError> {
     Err(ImageConvError::SomeErr)
+}
+
+impl TryInto<HndImage> for RawImage<u32> {
+    type Error = ImageConvError;
+    fn try_into(self) -> Result<HndImage, Self::Error> {
+        Err(ImageConvError::SomeErr)
+    }
+}
+
+impl TryInto<HndImage> for RawImage<u16> {
+    type Error = ImageConvError;
+    fn try_into(self) -> Result<HndImage, Self::Error> {
+        Err(ImageConvError::SomeErr)
+    }
 }
 
 //fn from_raw(img: &[u8], width: u32, height: u32) -> Result<Box> {}
@@ -704,6 +733,24 @@ mod tests {
             print!(".");
         }
     }
+
+    #[test]
+    fn test_read_raw_32() {
+        use std::convert::TryInto;
+        use std::io::{BufReader, Read, Seek, SeekFrom};
+
+        // test hnd file
+        let test_file_1 = String::from("test/test_data_1.hnd");
+        let mut f_test = std::fs::File::open(test_file_1).unwrap();
+        let test_data = crate::read_hnd_data(&mut f_test).unwrap();
+
+        // raw file to compare with
+        let raw_file_1 = String::from("test/test_data_1.raw");
+        let mut f_raw = std::fs::File::open(raw_file_1).unwrap();
+    }
+
+    #[test]
+    fn test_read_raw_16() {}
 
     #[test]
     fn test_header_convertion() {
