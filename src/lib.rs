@@ -608,18 +608,18 @@ impl TryInto<RawImage<u32>> for HndImage {
 }
 
 fn encode_data_u32(
-    img: Vec<u32>,
+    img: &Vec<u32>,
     width: usize,
     height: usize,
 ) -> Result<hnd_data_t, ImageConvError> {
     // Initialize the hnd_data_t structure
     let lut_size: usize = (height - 1) * width / 4;
     let mut hnd_data: hnd_data_t = Vec::with_capacity(width * height * 4 + lut_size);
-    hnd_data.resize(lut_size, 0);
 
-    // Create LUT
-    let lut = hnd_data.as_mut_slice();
-    assert_eq!(lut.len(), lut_size);
+    // LUT
+    hnd_data.resize(lut_size, 0);
+    // let lut = hnd_data.as_mut_slice();
+    // assert_eq!(lut.len(), lut_size);
 
     // Copy the first line and first pixel of the second line of the raw image
     img[..(width + 1)]
@@ -627,7 +627,66 @@ fn encode_data_u32(
         .for_each(|x| x.to_ne_bytes().iter().for_each(|x| hnd_data.push(*x)));
 
     // Go through the rest of the pixels and encode into hnd format
-    Err(ImageConvError::SomeErr)
+    let mut lut_off: usize = 0;
+    let mut lut_idx: usize = 0;
+    for i in (width + 1)..(width * height) {
+        let r11 = img[i - width - 1];
+        let r12 = img[i - width];
+        let r21 = img[i - 1];
+        // println!("{} {} {} {} {}", i, img[1], r11, r21, r12);
+        let diff: i64 = img[i] as i64 + r11 as i64 - r21 as i64 - r12 as i64;
+        // TODO:
+        //  need to handle negative diff
+        //
+
+        let mut v: u8 = 0;
+        if diff >= i8::min_value().into() && diff <= i8::max_value().into() {
+            (diff as i8)
+                .to_ne_bytes()
+                .iter()
+                .for_each(|x| hnd_data.push(*x));
+            v = 0;
+        } else if diff >= i16::min_value().into() && diff <= i16::max_value().into() {
+            (diff as i16)
+                .to_ne_bytes()
+                .iter()
+                .for_each(|x| hnd_data.push(*x));
+            v = 1;
+        } else if diff >= i32::min_value().into() && diff <= i32::max_value().into() {
+            (diff as i32)
+                .to_ne_bytes()
+                .iter()
+                .for_each(|x| hnd_data.push(*x));
+            v = 2;
+        } else {
+            panic!("shouldn't get here!");
+        }
+
+        // append the v value to the LUT table
+        match lut_off {
+            0 => {
+                hnd_data[lut_idx] = v;
+                lut_off += 1;
+            }
+            1 => {
+                hnd_data[lut_idx] |= v << 2;
+                lut_off += 1;
+            }
+            2 => {
+                hnd_data[lut_idx] |= v << 4;
+                lut_off += 1;
+            }
+            3 => {
+                hnd_data[lut_idx] |= v << 6;
+                lut_off = 0;
+                lut_idx += 1;
+            }
+            _ => {
+                panic!("shouldn't get here!");
+            }
+        }
+    }
+    Ok(hnd_data)
 }
 
 fn encode_data_u16(
@@ -739,14 +798,53 @@ mod tests {
         use std::convert::TryInto;
         use std::io::{BufReader, Read, Seek, SeekFrom};
 
+        let width = 1024;
+        let height = 768;
+
         // test hnd file
         let test_file_1 = String::from("test/test_data_1.hnd");
         let mut f_test = std::fs::File::open(test_file_1).unwrap();
-        let test_data = crate::read_hnd_data(&mut f_test).unwrap();
+        let test_data_hnd = crate::read_hnd_data(&mut f_test).unwrap();
 
         // raw file to compare with
         let raw_file_1 = String::from("test/test_data_1.raw");
         let mut f_raw = std::fs::File::open(raw_file_1).unwrap();
+
+        // Read in the raw data
+        let mut raw_vec_u32: Vec<u32> = Vec::with_capacity(1024 * 768);
+        let mut buf: [u8; 4] = [0; 4];
+        while f_raw.read(&mut buf).unwrap() != 0 {
+            let v = u32::from_ne_bytes(buf[..].try_into().unwrap());
+            raw_vec_u32.push(v);
+        }
+
+        // endcode the raw 32 bits data
+        let encoded: crate::hnd_data_t = crate::encode_data_u32(&raw_vec_u32, 1024, 768).unwrap();
+
+        // parse the hnd data
+        let parsed = crate::parse_data(&test_data_hnd, width, height).unwrap();
+
+        // compare the len of the compressed data
+        assert_eq!(encoded.len(), test_data_hnd.len());
+
+        println!(
+            "Orignial size = {}, encoded size = {}",
+            test_data_hnd.len(),
+            encoded.len()
+        );
+
+        // compare LUT
+        let lut_size: usize = (height - 1) * width / 4;
+
+        for i in 0..lut_size {
+            assert_eq!(encoded[i], test_data_hnd[i]);
+            println!("{} {}", encoded[i], test_data_hnd[i]);
+        }
+
+        // compare the data
+        for i in lut_size..encoded.len() {
+            assert_eq!(encoded[i], test_data_hnd[i]);
+        }
     }
 
     #[test]
