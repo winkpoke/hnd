@@ -5,6 +5,7 @@ use std::convert::{From, Into, TryInto};
 use std::fs::File;
 use std::io;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
+use std::mem;
 
 const RAWMEMDATA_DEFAULT_SIZE: usize = 1024;
 struct RawMemData {
@@ -613,13 +614,12 @@ fn encode_data_u32(
     height: usize,
 ) -> Result<hnd_data_t, ImageConvError> {
     // Initialize the hnd_data_t structure
+    const pixel_size: usize = mem::size_of::<u32>();
     let lut_size: usize = (height - 1) * width / 4;
-    let mut hnd_data: hnd_data_t = Vec::with_capacity(width * height * 4 + lut_size);
+    let mut hnd_data: hnd_data_t = Vec::with_capacity(width * height * pixel_size + lut_size);
 
     // LUT
     hnd_data.resize(lut_size, 0);
-    // let lut = hnd_data.as_mut_slice();
-    // assert_eq!(lut.len(), lut_size);
 
     // Copy the first line and first pixel of the second line of the raw image
     img[..(width + 1)]
@@ -690,11 +690,84 @@ fn encode_data_u32(
 }
 
 fn encode_data_u16(
-    img: Vec<u32>,
+    img: &Vec<u16>,
     width: usize,
     height: usize,
 ) -> Result<hnd_data_t, ImageConvError> {
-    Err(ImageConvError::SomeErr)
+    // Initialize the hnd_data_t structure
+    const pixel_size: usize = mem::size_of::<u16>();
+    let lut_size: usize = (height - 1) * width / 4;
+    let mut hnd_data: hnd_data_t = Vec::with_capacity(width * height * pixel_size + lut_size);
+
+    // LUT
+    hnd_data.resize(lut_size, 0);
+
+    // Copy the first line and first pixel of the second line of the raw image
+    img[..(width + 1)]
+        .iter()
+        .for_each(|x| x.to_ne_bytes().iter().for_each(|x| hnd_data.push(*x)));
+
+    // Go through the rest of the pixels and encode into hnd format
+    let mut lut_off: usize = 0;
+    let mut lut_idx: usize = 0;
+    for i in (width + 1)..(width * height) {
+        let r11 = img[i - width - 1];
+        let r12 = img[i - width];
+        let r21 = img[i - 1];
+        // println!("{} {} {} {} {}", i, img[1], r11, r21, r12);
+        let diff: i64 = img[i] as i64 + r11 as i64 - r21 as i64 - r12 as i64;
+        // TODO:
+        //  need to handle negative diff
+        //
+
+        let mut v: u8 = 0;
+        if diff >= i8::min_value().into() && diff <= i8::max_value().into() {
+            (diff as i8)
+                .to_ne_bytes()
+                .iter()
+                .for_each(|x| hnd_data.push(*x));
+            v = 0;
+        } else if diff >= i16::min_value().into() && diff <= i16::max_value().into() {
+            (diff as i16)
+                .to_ne_bytes()
+                .iter()
+                .for_each(|x| hnd_data.push(*x));
+            v = 1;
+        } else if diff >= i32::min_value().into() && diff <= i32::max_value().into() {
+            (diff as i32)
+                .to_ne_bytes()
+                .iter()
+                .for_each(|x| hnd_data.push(*x));
+            v = 2;
+        } else {
+            panic!("shouldn't get here!");
+        }
+
+        // append the v value to the LUT table
+        match lut_off {
+            0 => {
+                hnd_data[lut_idx] = v;
+                lut_off += 1;
+            }
+            1 => {
+                hnd_data[lut_idx] |= v << 2;
+                lut_off += 1;
+            }
+            2 => {
+                hnd_data[lut_idx] |= v << 4;
+                lut_off += 1;
+            }
+            3 => {
+                hnd_data[lut_idx] |= v << 6;
+                lut_off = 0;
+                lut_idx += 1;
+            }
+            _ => {
+                panic!("shouldn't get here!");
+            }
+        }
+    }
+    Ok(hnd_data)
 }
 
 impl TryInto<HndImage> for RawImage<u32> {
