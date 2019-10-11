@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 
-use std::convert::{From, Into, TryInto};
+use std::convert::{From, Into, TryFrom, TryInto};
 use std::fs::File;
 use std::io;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
@@ -203,6 +203,10 @@ impl<T> Size2D for RawImage<T> {
     }
 }
 
+trait HndEncode {
+    fn encode(&self, width: usize, heidht: usize) -> Result<hnd_data_t, ImageConvError>;
+}
+
 impl std::fmt::Display for hnd_header_t {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "File Type:\t{}", self.sFileType)?;
@@ -276,7 +280,7 @@ impl std::fmt::Display for hnd_header_t {
     }
 }
 
-pub fn read_header_to_raw(f: &File) -> Result<hnd_header_raw_t, io::Error> {
+fn read_header_to_raw(f: &File) -> Result<hnd_header_raw_t, io::Error> {
     let mut reader = BufReader::new(f);
     let mut buf: hnd_header_raw_t = [0; 1024];
     let n: usize = reader.read(&mut buf[..1024])?;
@@ -425,30 +429,6 @@ impl Into<hnd_header_raw_t> for hnd_header_t {
     }
 }
 
-pub fn print_header(f: &mut File) -> Result<(), io::Error> {
-    let raw = read_header_to_raw(f)?;
-    //let hnd_head = parse_header(&raw)?;
-    let hnd_head: hnd_header_t = raw.into();
-
-    //println!("DEBUG: {:?}", hnd_head);
-    println!("{}", hnd_head);
-
-    Ok(())
-}
-
-pub fn read_header(f: &mut File) -> Result<hnd_header_t, io::Error> {
-    let raw = read_header_to_raw(f)?;
-    let hnd_head: hnd_header_t = raw.into();
-    //println!("DEBUG: {:?}", hnd_head);
-
-    Ok(hnd_head)
-}
-
-fn write_header(f: &mut File, h: &hnd_header_t) -> Result<(), io::Error> {
-    f.write(h.sFileType.as_ref())?;
-    Ok(())
-}
-
 struct LutIter<'a> {
     table: &'a [u8],
     size: usize,
@@ -505,27 +485,7 @@ impl<'a> Iterator for LutIter<'a> {
     }
 }
 
-// struct LutIterMut<'a> {
-//     table: &'a mut [u8],
-//     size: usize,
-//     pos: usize,
-//     idx: usize,
-//     offset: usize,
-// }
-
-// impl<'a> LutIterMut<'a> {
-//     fn new(part: &'a mut [u8], size: usize) -> LutIterMut<'a> {
-//         LutIterMut {
-//             table: part,
-//             size: size,
-//             pos: 0,
-//             idx: 0,
-//             offset: 0,
-//         }
-//     }
-// }
-
-fn parse_data(raw: &hnd_data_t, width: usize, height: usize) -> Result<Vec<u32>, ImageConvError> {
+fn decode(raw: &hnd_data_t, width: usize, height: usize) -> Result<Vec<u32>, ImageConvError> {
     let mut output = Vec::with_capacity(width * height * 4);
 
     // Read LUT
@@ -598,7 +558,7 @@ impl TryInto<RawImage<u32>> for HndImage {
     fn try_into(self) -> Result<RawImage<u32>, Self::Error> {
         let width = self.width();
         let height = self.height();
-        let data = parse_data(&self.data, width, height)?;
+        let data = decode(&self.data, width, height)?;
 
         Ok(RawImage {
             width: width,
@@ -608,11 +568,56 @@ impl TryInto<RawImage<u32>> for HndImage {
     }
 }
 
-fn encode_data_u32(
-    img: &Vec<u32>,
-    width: usize,
-    height: usize,
-) -> Result<hnd_data_t, ImageConvError> {
+fn compress_data_impl(hnd_data: &mut Vec<u8>, diff: i64, lut_off: &mut usize, lut_idx: &mut usize) {
+    let mut v: u8 = 0;
+    if diff >= i8::min_value().into() && diff <= i8::max_value().into() {
+        (diff as i8)
+            .to_ne_bytes()
+            .iter()
+            .for_each(|x| hnd_data.push(*x));
+        v = 0;
+    } else if diff >= i16::min_value().into() && diff <= i16::max_value().into() {
+        (diff as i16)
+            .to_ne_bytes()
+            .iter()
+            .for_each(|x| hnd_data.push(*x));
+        v = 1;
+    } else if diff >= i32::min_value().into() && diff <= i32::max_value().into() {
+        (diff as i32)
+            .to_ne_bytes()
+            .iter()
+            .for_each(|x| hnd_data.push(*x));
+        v = 2;
+    } else {
+        panic!("shouldn't get here!");
+    }
+
+    // append the v value to the LUT table
+    match lut_off {
+        0 => {
+            hnd_data[*lut_idx] = v;
+            *lut_off += 1;
+        }
+        1 => {
+            hnd_data[*lut_idx] |= v << 2;
+            *lut_off += 1;
+        }
+        2 => {
+            hnd_data[*lut_idx] |= v << 4;
+            *lut_off += 1;
+        }
+        3 => {
+            hnd_data[*lut_idx] |= v << 6;
+            *lut_off = 0;
+            *lut_idx += 1;
+        }
+        _ => {
+            panic!("shouldn't get here!");
+        }
+    }
+}
+
+fn encode_u32(img: &Vec<u32>, width: usize, height: usize) -> Result<hnd_data_t, ImageConvError> {
     // Initialize the hnd_data_t structure
     const pixel_size: usize = mem::size_of::<u32>();
     let lut_size: usize = (height - 1) * width / 4;
@@ -635,65 +640,13 @@ fn encode_data_u32(
         let r21 = img[i - 1];
         // println!("{} {} {} {} {}", i, img[1], r11, r21, r12);
         let diff: i64 = img[i] as i64 + r11 as i64 - r21 as i64 - r12 as i64;
-        // TODO:
-        //  need to handle negative diff
-        //
-
-        let mut v: u8 = 0;
-        if diff >= i8::min_value().into() && diff <= i8::max_value().into() {
-            (diff as i8)
-                .to_ne_bytes()
-                .iter()
-                .for_each(|x| hnd_data.push(*x));
-            v = 0;
-        } else if diff >= i16::min_value().into() && diff <= i16::max_value().into() {
-            (diff as i16)
-                .to_ne_bytes()
-                .iter()
-                .for_each(|x| hnd_data.push(*x));
-            v = 1;
-        } else if diff >= i32::min_value().into() && diff <= i32::max_value().into() {
-            (diff as i32)
-                .to_ne_bytes()
-                .iter()
-                .for_each(|x| hnd_data.push(*x));
-            v = 2;
-        } else {
-            panic!("shouldn't get here!");
-        }
-
-        // append the v value to the LUT table
-        match lut_off {
-            0 => {
-                hnd_data[lut_idx] = v;
-                lut_off += 1;
-            }
-            1 => {
-                hnd_data[lut_idx] |= v << 2;
-                lut_off += 1;
-            }
-            2 => {
-                hnd_data[lut_idx] |= v << 4;
-                lut_off += 1;
-            }
-            3 => {
-                hnd_data[lut_idx] |= v << 6;
-                lut_off = 0;
-                lut_idx += 1;
-            }
-            _ => {
-                panic!("shouldn't get here!");
-            }
-        }
+        compress_data_impl(&mut hnd_data, diff, &mut lut_off, &mut lut_idx);
     }
+
     Ok(hnd_data)
 }
 
-fn encode_data_u16(
-    img: &Vec<u16>,
-    width: usize,
-    height: usize,
-) -> Result<hnd_data_t, ImageConvError> {
+fn encode_u16(img: &Vec<u16>, width: usize, height: usize) -> Result<hnd_data_t, ImageConvError> {
     // Initialize the hnd_data_t structure
     const pixel_size: usize = mem::size_of::<u16>();
     let lut_size: usize = (height - 1) * width / 4;
@@ -716,59 +669,13 @@ fn encode_data_u16(
         let r21 = img[i - 1];
         // println!("{} {} {} {} {}", i, img[1], r11, r21, r12);
         let diff: i64 = img[i] as i64 + r11 as i64 - r21 as i64 - r12 as i64;
-        // TODO:
-        //  need to handle negative diff
-        //
 
-        let mut v: u8 = 0;
-        if diff >= i8::min_value().into() && diff <= i8::max_value().into() {
-            (diff as i8)
-                .to_ne_bytes()
-                .iter()
-                .for_each(|x| hnd_data.push(*x));
-            v = 0;
-        } else if diff >= i16::min_value().into() && diff <= i16::max_value().into() {
-            (diff as i16)
-                .to_ne_bytes()
-                .iter()
-                .for_each(|x| hnd_data.push(*x));
-            v = 1;
-        } else if diff >= i32::min_value().into() && diff <= i32::max_value().into() {
-            (diff as i32)
-                .to_ne_bytes()
-                .iter()
-                .for_each(|x| hnd_data.push(*x));
-            v = 2;
-        } else {
-            panic!("shouldn't get here!");
-        }
-
-        // append the v value to the LUT table
-        match lut_off {
-            0 => {
-                hnd_data[lut_idx] = v;
-                lut_off += 1;
-            }
-            1 => {
-                hnd_data[lut_idx] |= v << 2;
-                lut_off += 1;
-            }
-            2 => {
-                hnd_data[lut_idx] |= v << 4;
-                lut_off += 1;
-            }
-            3 => {
-                hnd_data[lut_idx] |= v << 6;
-                lut_off = 0;
-                lut_idx += 1;
-            }
-            _ => {
-                panic!("shouldn't get here!");
-            }
-        }
+        compress_data_impl(&mut hnd_data, diff, &mut lut_off, &mut lut_idx);
     }
     Ok(hnd_data)
 }
+
+// impl HndEncode for RawImage<u32> {}
 
 impl TryInto<HndImage> for RawImage<u32> {
     type Error = ImageConvError;
@@ -785,10 +692,33 @@ impl TryInto<HndImage> for RawImage<u16> {
 }
 
 //fn from_raw(img: &[u8], width: u32, height: u32) -> Result<Box> {}
+//
+pub fn print_header(f: &mut File) -> Result<(), io::Error> {
+    let raw = read_header_to_raw(f)?;
+    //let hnd_head = parse_header(&raw)?;
+    let hnd_head: hnd_header_t = raw.into();
 
-fn read_hnd_data(f: &mut File) -> Result<hnd_data_t, io::Error> {
-    let raw_header = read_header_to_raw(f)?;
-    let header: hnd_header_t = raw_header.into();
+    //println!("DEBUG: {:?}", hnd_head);
+    println!("{}", hnd_head);
+
+    Ok(())
+}
+
+pub fn read_header(f: &mut File) -> Result<hnd_header_t, io::Error> {
+    let raw = read_header_to_raw(f)?;
+    let hnd_head: hnd_header_t = raw.into();
+    //println!("DEBUG: {:?}", hnd_head);
+
+    Ok(hnd_head)
+}
+
+fn write_header(f: &mut File, h: &hnd_header_t) -> Result<(), io::Error> {
+    f.write(h.sFileType.as_ref())?;
+    Ok(())
+}
+
+fn read_data(f: &mut File) -> Result<hnd_data_t, io::Error> {
+    let header: hnd_header_t = read_header(f)?;
 
     let w = header.SizeX;
     let h = header.SizeY;
@@ -800,6 +730,13 @@ fn read_hnd_data(f: &mut File) -> Result<hnd_data_t, io::Error> {
     let s = f.read_to_end(&mut buf)?;
 
     Ok(buf)
+}
+
+pub fn read_file(f: &mut File) -> Result<HndImage, io::Error> {
+    Ok(HndImage {
+        header: read_header(f).unwrap(),
+        data: read_data(f).unwrap(),
+    })
 }
 
 pub fn convert_to_raw(fin: &mut File, fout: &mut File) -> Result<(), io::Error> {
@@ -835,7 +772,7 @@ mod tests {
         // test hnd file
         let test_file_1 = String::from("test/test_data_1.hnd");
         let mut f_test = std::fs::File::open(test_file_1).unwrap();
-        let test_data = crate::read_hnd_data(&mut f_test).unwrap();
+        let test_data = crate::read_data(&mut f_test).unwrap();
 
         // raw file to compare with
         let raw_file_1 = String::from("test/test_data_1.raw");
@@ -855,7 +792,7 @@ mod tests {
         }
 
         // parse the hnd data
-        let parsed = crate::parse_data(&test_data, 1024, 768).unwrap();
+        let parsed = crate::decode(&test_data, 1024, 768).unwrap();
 
         //compare the results
         for i in 0..1024 * 768 {
@@ -877,7 +814,7 @@ mod tests {
         // test hnd file
         let test_file_1 = String::from("test/test_data_1.hnd");
         let mut f_test = std::fs::File::open(test_file_1).unwrap();
-        let test_data_hnd = crate::read_hnd_data(&mut f_test).unwrap();
+        let test_data_hnd = crate::read_data(&mut f_test).unwrap();
 
         // raw file to compare with
         let raw_file_1 = String::from("test/test_data_1.raw");
@@ -892,10 +829,10 @@ mod tests {
         }
 
         // endcode the raw 32 bits data
-        let encoded: crate::hnd_data_t = crate::encode_data_u32(&raw_vec_u32, 1024, 768).unwrap();
+        let encoded: crate::hnd_data_t = crate::encode_u32(&raw_vec_u32, 1024, 768).unwrap();
 
         // parse the hnd data
-        let parsed = crate::parse_data(&test_data_hnd, width, height).unwrap();
+        let parsed = crate::decode(&test_data_hnd, width, height).unwrap();
 
         // compare the len of the compressed data
         assert_eq!(encoded.len(), test_data_hnd.len());
