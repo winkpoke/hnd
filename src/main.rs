@@ -23,7 +23,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             (about: "print out header information.")
             (@arg filename: +required "Sets the input file"))
         (@subcommand convert =>
-            (about: "print out header information.")
+            (about: "Convert HND to RAW.")
             (@arg input: +required "Sets the input file")
             (@arg output: +required "Sets the output file"))
     )
