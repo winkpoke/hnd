@@ -22,10 +22,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         (@subcommand show =>
             (about: "print out header information.")
             (@arg filename: +required "Sets the input file"))
-        (@subcommand convert =>
+        (@subcommand conv =>
             (about: "Convert HND to RAW.")
             (@arg input: +required "Sets the input file")
             (@arg output: +required "Sets the output file"))
+        (@subcommand raw =>
+            (about: "Create HND from RAW.")
+            (@arg input: +required "Sets the input file")
+            (@arg output: +required "Sets the output file")
+            (@arg width: -w --width <INT> +required +takes_value "Width of the image")
+            (@arg width: -h --height <INT> +required +takes_value "Height of the image"))
     )
     .get_matches();
 
