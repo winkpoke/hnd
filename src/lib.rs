@@ -7,6 +7,8 @@ use std::io;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::mem;
 
+pub mod header;
+
 const RAWMEMDATA_DEFAULT_SIZE: usize = 1024;
 struct RawMemData {
     data: Box<[u8]>,
@@ -169,6 +171,145 @@ impl Buf {
 type hnd_header_raw_t = [u8; 1024];
 type hnd_data_t = Vec<u8>;
 
+impl hnd_header_t {
+    pub fn to_raw(&self) -> hnd_header_raw_t {
+        let mut buf = Buf::new();
+
+        // iter!(String, buf_iter, self.sFileType, 32);
+        buf.write_string(&self.sFileType, 32);
+        buf.write_u32(self.FileLength);
+        buf.write_string(&self.chasChecksumSpec, 4);
+        buf.write_u32(self.nCheckSum);
+        buf.write_string(&self.sCreationDate, 8);
+        buf.write_string(&self.sCreationTime, 8);
+        buf.write_string(&self.sPatientID, 16); //[u8; 16],
+        buf.write_u32(self.nPatientSer);
+        buf.write_string(&self.sSeriesID, 16); //[u8; 16],
+        buf.write_u32(self.nSeriesSer);
+        buf.write_string(&self.sSliceID, 16); //[u8; 16],
+        buf.write_u32(self.nSliceSer);
+        buf.write_u32(self.SizeX);
+        buf.write_u32(self.SizeY);
+        buf.write_f64(self.dSliceZPos);
+        buf.write_string(&self.sModality, 16); //[u8; 16],
+        buf.write_u32(self.nWindow);
+        buf.write_u32(self.nLevel);
+        buf.write_u32(self.nPixelOffset);
+        buf.write_string(&self.sImageType, 4); //[u8; 4],
+        buf.write_f64(self.dGantryRtn);
+        buf.write_f64(self.dSAD);
+        buf.write_f64(self.dSFD);
+        buf.write_f64(self.dCollX1);
+        buf.write_f64(self.dCollX2);
+        buf.write_f64(self.dCollY1);
+        buf.write_f64(self.dCollY2);
+        buf.write_f64(self.dCollRtn);
+        buf.write_f64(self.dFieldX);
+        buf.write_f64(self.dFieldY);
+        buf.write_f64(self.dBladeX1);
+        buf.write_f64(self.dBladeX2);
+        buf.write_f64(self.dBladeY1);
+        buf.write_f64(self.dBladeY2);
+        buf.write_f64(self.dIDUPosLng);
+        buf.write_f64(self.dIDUPosLat);
+        buf.write_f64(self.dIDUPosVrt);
+        buf.write_f64(self.dIDUPosRtn);
+        buf.write_f64(self.dPatientSupportAngle);
+        buf.write_f64(self.dTableTopEccentricAngle);
+        buf.write_f64(self.dCouchVrt);
+        buf.write_f64(self.dCouchLng);
+        buf.write_f64(self.dCouchLat);
+        buf.write_f64(self.dIDUResolutionX);
+        buf.write_f64(self.dIDUResolutionY);
+        buf.write_f64(self.dImageResolutionX);
+        buf.write_f64(self.dImageResolutionY);
+        buf.write_f64(self.dEnergy);
+        buf.write_f64(self.dDoseRate);
+        buf.write_f64(self.dXRayKV);
+        buf.write_f64(self.dXRayMA);
+        buf.write_f64(self.dMetersetExposure);
+        buf.write_f64(self.dAcqAdjustment);
+        buf.write_f64(self.dCTProjectionAngle);
+        buf.write_f64(self.dCTNormChamber);
+        buf.write_f64(self.dGatingTimeTag);
+        buf.write_f64(self.dGating4DInfoX);
+        buf.write_f64(self.dGating4DInfoY);
+        buf.write_f64(self.dGating4DInfoZ);
+        buf.write_f64(self.dGating4DInfoTime);
+        // );
+        let mut array: [u8; 1024] = [0; 1024];
+        array.copy_from_slice(&buf.data[0..1024]);
+        array
+    }
+
+    pub fn from_raw(raw_header: &hnd_header_raw_t) -> hnd_header_t {
+        let mut pos: usize = 0;
+        let mut buf = Buf::from(&raw_header[..1024]);
+        hnd_header_t {
+            sFileType: buf.read_string(32),
+            FileLength: buf.read_u32(),
+            chasChecksumSpec: buf.read_string(4),
+            nCheckSum: buf.read_u32(),
+            sCreationDate: buf.read_string(8),
+            sCreationTime: buf.read_string(8),
+            sPatientID: buf.read_string(16),
+            nPatientSer: buf.read_u32(),
+            sSeriesID: buf.read_string(16),
+            nSeriesSer: buf.read_u32(),
+            sSliceID: buf.read_string(16),
+            nSliceSer: buf.read_u32(),
+            SizeX: buf.read_u32(),
+            SizeY: buf.read_u32(),
+            dSliceZPos: buf.read_f64(),
+            sModality: buf.read_string(16),
+            nWindow: buf.read_u32(),
+            nLevel: buf.read_u32(),
+            nPixelOffset: buf.read_u32(),
+            sImageType: buf.read_string(4),
+            dGantryRtn: buf.read_f64(),              //f64,
+            dSAD: buf.read_f64(),                    //f64,
+            dSFD: buf.read_f64(),                    //f64,
+            dCollX1: buf.read_f64(),                 //f64,
+            dCollX2: buf.read_f64(),                 //f64,
+            dCollY1: buf.read_f64(),                 //f64,
+            dCollY2: buf.read_f64(),                 //f64,
+            dCollRtn: buf.read_f64(),                //f64,
+            dFieldX: buf.read_f64(),                 //f64,
+            dFieldY: buf.read_f64(),                 //f64,
+            dBladeX1: buf.read_f64(),                //f64,
+            dBladeX2: buf.read_f64(),                //f64,
+            dBladeY1: buf.read_f64(),                //f64,
+            dBladeY2: buf.read_f64(),                //f64,
+            dIDUPosLng: buf.read_f64(),              //f64,
+            dIDUPosLat: buf.read_f64(),              //f64,
+            dIDUPosVrt: buf.read_f64(),              //f64,
+            dIDUPosRtn: buf.read_f64(),              //f64,
+            dPatientSupportAngle: buf.read_f64(),    //f64,
+            dTableTopEccentricAngle: buf.read_f64(), //f64,
+            dCouchVrt: buf.read_f64(),               //f64,
+            dCouchLng: buf.read_f64(),               //f64,
+            dCouchLat: buf.read_f64(),               //f64,
+            dIDUResolutionX: buf.read_f64(),         //f64,
+            dIDUResolutionY: buf.read_f64(),         //f64,
+            dImageResolutionX: buf.read_f64(),       //f64,
+            dImageResolutionY: buf.read_f64(),       //f64,
+            dEnergy: buf.read_f64(),                 //f64,
+            dDoseRate: buf.read_f64(),               //f64,
+            dXRayKV: buf.read_f64(),                 //f64,
+            dXRayMA: buf.read_f64(),                 //f64,
+            dMetersetExposure: buf.read_f64(),       //f64,
+            dAcqAdjustment: buf.read_f64(),          //f64,
+            dCTProjectionAngle: buf.read_f64(),      //f64,
+            dCTNormChamber: buf.read_f64(),          //f64,
+            dGatingTimeTag: buf.read_f64(),          //f64,
+            dGating4DInfoX: buf.read_f64(),          //f64,
+            dGating4DInfoY: buf.read_f64(),          //f64,
+            dGating4DInfoZ: buf.read_f64(),          //f64,
+            dGating4DInfoTime: buf.read_f64(),       //f64,
+        }
+    }
+}
+
 pub struct HndImage {
     header: hnd_header_t,
     data: hnd_data_t,
@@ -277,155 +418,6 @@ impl std::fmt::Display for hnd_header_t {
         writeln!(f, "dGating4DInfoTime:\t{:e}", self.dGating4DInfoTime)?;
 
         Ok(())
-    }
-}
-
-fn read_header_to_raw(f: &File) -> Result<hnd_header_raw_t, io::Error> {
-    let mut reader = BufReader::new(f);
-    let mut buf: hnd_header_raw_t = [0; 1024];
-    let n: usize = reader.read(&mut buf[..1024])?;
-    println!("DEBUG: read in {} bytes in total.", n);
-    return Ok(buf);
-}
-
-impl Into<hnd_header_t> for hnd_header_raw_t {
-    fn into(self) -> hnd_header_t {
-        let mut pos: usize = 0;
-        let mut buf = Buf::from(&self);
-        hnd_header_t {
-            sFileType: buf.read_string(32),
-            FileLength: buf.read_u32(),
-            chasChecksumSpec: buf.read_string(4),
-            nCheckSum: buf.read_u32(),
-            sCreationDate: buf.read_string(8),
-            sCreationTime: buf.read_string(8),
-            sPatientID: buf.read_string(16),
-            nPatientSer: buf.read_u32(),
-            sSeriesID: buf.read_string(16),
-            nSeriesSer: buf.read_u32(),
-            sSliceID: buf.read_string(16),
-            nSliceSer: buf.read_u32(),
-            SizeX: buf.read_u32(),
-            SizeY: buf.read_u32(),
-            dSliceZPos: buf.read_f64(),
-            sModality: buf.read_string(16),
-            nWindow: buf.read_u32(),
-            nLevel: buf.read_u32(),
-            nPixelOffset: buf.read_u32(),
-            sImageType: buf.read_string(4),
-            dGantryRtn: buf.read_f64(),              //f64,
-            dSAD: buf.read_f64(),                    //f64,
-            dSFD: buf.read_f64(),                    //f64,
-            dCollX1: buf.read_f64(),                 //f64,
-            dCollX2: buf.read_f64(),                 //f64,
-            dCollY1: buf.read_f64(),                 //f64,
-            dCollY2: buf.read_f64(),                 //f64,
-            dCollRtn: buf.read_f64(),                //f64,
-            dFieldX: buf.read_f64(),                 //f64,
-            dFieldY: buf.read_f64(),                 //f64,
-            dBladeX1: buf.read_f64(),                //f64,
-            dBladeX2: buf.read_f64(),                //f64,
-            dBladeY1: buf.read_f64(),                //f64,
-            dBladeY2: buf.read_f64(),                //f64,
-            dIDUPosLng: buf.read_f64(),              //f64,
-            dIDUPosLat: buf.read_f64(),              //f64,
-            dIDUPosVrt: buf.read_f64(),              //f64,
-            dIDUPosRtn: buf.read_f64(),              //f64,
-            dPatientSupportAngle: buf.read_f64(),    //f64,
-            dTableTopEccentricAngle: buf.read_f64(), //f64,
-            dCouchVrt: buf.read_f64(),               //f64,
-            dCouchLng: buf.read_f64(),               //f64,
-            dCouchLat: buf.read_f64(),               //f64,
-            dIDUResolutionX: buf.read_f64(),         //f64,
-            dIDUResolutionY: buf.read_f64(),         //f64,
-            dImageResolutionX: buf.read_f64(),       //f64,
-            dImageResolutionY: buf.read_f64(),       //f64,
-            dEnergy: buf.read_f64(),                 //f64,
-            dDoseRate: buf.read_f64(),               //f64,
-            dXRayKV: buf.read_f64(),                 //f64,
-            dXRayMA: buf.read_f64(),                 //f64,
-            dMetersetExposure: buf.read_f64(),       //f64,
-            dAcqAdjustment: buf.read_f64(),          //f64,
-            dCTProjectionAngle: buf.read_f64(),      //f64,
-            dCTNormChamber: buf.read_f64(),          //f64,
-            dGatingTimeTag: buf.read_f64(),          //f64,
-            dGating4DInfoX: buf.read_f64(),          //f64,
-            dGating4DInfoY: buf.read_f64(),          //f64,
-            dGating4DInfoZ: buf.read_f64(),          //f64,
-            dGating4DInfoTime: buf.read_f64(),       //f64,
-        }
-    }
-}
-
-impl Into<hnd_header_raw_t> for hnd_header_t {
-    fn into(self) -> hnd_header_raw_t {
-        let mut buf = Buf::new();
-
-        // iter!(String, buf_iter, self.sFileType, 32);
-        buf.write_string(&self.sFileType, 32);
-        buf.write_u32(self.FileLength);
-        buf.write_string(&self.chasChecksumSpec, 4);
-        buf.write_u32(self.nCheckSum);
-        buf.write_string(&self.sCreationDate, 8);
-        buf.write_string(&self.sCreationTime, 8);
-        buf.write_string(&self.sPatientID, 16); //[u8; 16],
-        buf.write_u32(self.nPatientSer);
-        buf.write_string(&self.sSeriesID, 16); //[u8; 16],
-        buf.write_u32(self.nSeriesSer);
-        buf.write_string(&self.sSliceID, 16); //[u8; 16],
-        buf.write_u32(self.nSliceSer);
-        buf.write_u32(self.SizeX);
-        buf.write_u32(self.SizeY);
-        buf.write_f64(self.dSliceZPos);
-        buf.write_string(&self.sModality, 16); //[u8; 16],
-        buf.write_u32(self.nWindow);
-        buf.write_u32(self.nLevel);
-        buf.write_u32(self.nPixelOffset);
-        buf.write_string(&self.sImageType, 4); //[u8; 4],
-        buf.write_f64(self.dGantryRtn);
-        buf.write_f64(self.dSAD);
-        buf.write_f64(self.dSFD);
-        buf.write_f64(self.dCollX1);
-        buf.write_f64(self.dCollX2);
-        buf.write_f64(self.dCollY1);
-        buf.write_f64(self.dCollY2);
-        buf.write_f64(self.dCollRtn);
-        buf.write_f64(self.dFieldX);
-        buf.write_f64(self.dFieldY);
-        buf.write_f64(self.dBladeX1);
-        buf.write_f64(self.dBladeX2);
-        buf.write_f64(self.dBladeY1);
-        buf.write_f64(self.dBladeY2);
-        buf.write_f64(self.dIDUPosLng);
-        buf.write_f64(self.dIDUPosLat);
-        buf.write_f64(self.dIDUPosVrt);
-        buf.write_f64(self.dIDUPosRtn);
-        buf.write_f64(self.dPatientSupportAngle);
-        buf.write_f64(self.dTableTopEccentricAngle);
-        buf.write_f64(self.dCouchVrt);
-        buf.write_f64(self.dCouchLng);
-        buf.write_f64(self.dCouchLat);
-        buf.write_f64(self.dIDUResolutionX);
-        buf.write_f64(self.dIDUResolutionY);
-        buf.write_f64(self.dImageResolutionX);
-        buf.write_f64(self.dImageResolutionY);
-        buf.write_f64(self.dEnergy);
-        buf.write_f64(self.dDoseRate);
-        buf.write_f64(self.dXRayKV);
-        buf.write_f64(self.dXRayMA);
-        buf.write_f64(self.dMetersetExposure);
-        buf.write_f64(self.dAcqAdjustment);
-        buf.write_f64(self.dCTProjectionAngle);
-        buf.write_f64(self.dCTNormChamber);
-        buf.write_f64(self.dGatingTimeTag);
-        buf.write_f64(self.dGating4DInfoX);
-        buf.write_f64(self.dGating4DInfoY);
-        buf.write_f64(self.dGating4DInfoZ);
-        buf.write_f64(self.dGating4DInfoTime);
-        // );
-        let mut array: [u8; 1024] = [0; 1024];
-        array.copy_from_slice(&buf.data[0..1024]);
-        array
     }
 }
 
@@ -696,7 +688,7 @@ impl TryInto<HndImage> for RawImage<u16> {
 pub fn print_header(f: &mut File) -> Result<(), io::Error> {
     let raw = read_header_to_raw(f)?;
     //let hnd_head = parse_header(&raw)?;
-    let hnd_head: hnd_header_t = raw.into();
+    let hnd_head: hnd_header_t = hnd_header_t::from_raw(&raw);
 
     //println!("DEBUG: {:?}", hnd_head);
     println!("{}", hnd_head);
@@ -706,7 +698,7 @@ pub fn print_header(f: &mut File) -> Result<(), io::Error> {
 
 pub fn read_header(f: &mut File) -> Result<hnd_header_t, io::Error> {
     let raw = read_header_to_raw(f)?;
-    let hnd_head: hnd_header_t = raw.into();
+    let hnd_head: hnd_header_t = hnd_header_t::from_raw(&raw);
     //println!("DEBUG: {:?}", hnd_head);
 
     Ok(hnd_head)
@@ -732,11 +724,24 @@ fn read_data(f: &mut File) -> Result<hnd_data_t, io::Error> {
     Ok(buf)
 }
 
+fn read_header_to_raw(f: &File) -> Result<hnd_header_raw_t, io::Error> {
+    let mut reader = BufReader::new(f);
+    let mut buf: hnd_header_raw_t = [0; 1024];
+    let n: usize = reader.read(&mut buf[..1024])?;
+    println!("DEBUG: read in {} bytes in total.", n);
+    return Ok(buf);
+}
+
 pub fn read_file(f: &mut File) -> Result<HndImage, io::Error> {
     Ok(HndImage {
         header: read_header(f).unwrap(),
         data: read_data(f).unwrap(),
     })
+}
+
+pub fn write_file(f: &mut File, hnd: &HndImage) -> Result<(), io::Error> {
+    //let raw_header: hnd_header_raw_t = hnd.header.into();
+    Ok(())
 }
 
 pub fn convert_to_raw(fin: &mut File, fout: &mut File) -> Result<(), io::Error> {
@@ -866,8 +871,8 @@ mod tests {
         let test_file_1 = String::from("test/test_data_1.hnd");
         let mut f = std::fs::File::open(test_file_1).unwrap();
         let header: hnd_header_t = crate::read_header(&mut f).unwrap();
-        let raw_header_buf: hnd_header_raw_t = header.clone().into();
-        let header2: hnd_header_t = raw_header_buf.clone().into();
+        let raw_header_buf: hnd_header_raw_t = header.to_raw();
+        let header2: hnd_header_t = hnd_header_t::from_raw(&raw_header_buf);
 
         println!("{:?}", header);
         println!("{:?}", header2);
