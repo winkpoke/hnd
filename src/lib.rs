@@ -350,6 +350,15 @@ impl<T> Size2D for RawImage<T> {
     }
 }
 
+impl Size2D for hnd_header_t {
+    fn width(&self) -> usize {
+        self.SizeX as usize
+    }
+    fn height(&self) -> usize {
+        self.SizeY as usize
+    }
+}
+
 impl std::fmt::Display for hnd_header_t {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "File Type:\t{}", self.sFileType)?;
@@ -757,6 +766,33 @@ pub fn write_file(f: &mut File, hnd: &HndImage) -> Result<(), io::Error> {
 }
 
 pub fn convert_to_raw(fin: &mut File, fout: &mut File) -> Result<(), io::Error> {
+    let mut hnd_header_raw: hnd_header_raw_t = [0; 1024];
+    fin.read(&mut hnd_header_raw);
+
+    let mut hnd_data_buf: Vec<u8> = Vec::new();
+    fin.read_to_end(&mut hnd_data_buf);
+
+    let hnd_header = hnd_header_t::from_raw(&hnd_header_raw);
+    let height = hnd_header.height();
+    let width = hnd_header.width();
+
+    // let hnd_data: Vec<u32> = unsafe { std::mem::transmute(hnd_data_buf) };
+    let mut raw_image = decode(&hnd_data_buf, width, height).unwrap();
+    print!("{} ", raw_image.len());
+    let raw_image_buf: Vec<u8> = unsafe {
+        Vec::from_raw_parts(
+            raw_image.as_mut_ptr() as *mut u8,
+            width * height * 4,
+            width * height * 4,
+        )
+    };
+    unsafe {
+        std::mem::forget(raw_image);
+    }
+    // let raw_image_buf: Vec<u8> = unsafe { std::mem::transmute(raw_image) };
+    println!("{}", raw_image_buf.len());
+
+    fout.write(raw_image_buf.as_slice());
     Ok(())
 }
 
