@@ -32,66 +32,66 @@ pub enum ImageConvError {
 
 #[derive(Default, Debug, Clone)]
 pub struct hnd_header_t {
-    sFileType: String, //[u8; 32],
-    FileLength: u32,
-    chasChecksumSpec: String, //[u8; 4],
-    nCheckSum: u32,
-    sCreationDate: String, //[u8; 8],
-    sCreationTime: String, //[u8; 8],
-    sPatientID: String,    //[u8; 16],
-    nPatientSer: u32,
-    sSeriesID: String, //[u8; 16],
-    nSeriesSer: u32,
-    sSliceID: String, //[u8; 16],
-    nSliceSer: u32,
-    SizeX: u32,
-    SizeY: u32,
-    dSliceZPos: f64,
-    sModality: String, //[u8; 16],
-    nWindow: u32,
-    nLevel: u32,
-    nPixelOffset: u32,
-    sImageType: String, //[u8; 4],
-    dGantryRtn: f64,
-    dSAD: f64,
-    dSFD: f64,
-    dCollX1: f64,
-    dCollX2: f64,
-    dCollY1: f64,
-    dCollY2: f64,
-    dCollRtn: f64,
-    dFieldX: f64,
-    dFieldY: f64,
-    dBladeX1: f64,
-    dBladeX2: f64,
-    dBladeY1: f64,
-    dBladeY2: f64,
-    dIDUPosLng: f64,
-    dIDUPosLat: f64,
-    dIDUPosVrt: f64,
-    dIDUPosRtn: f64,
-    dPatientSupportAngle: f64,
-    dTableTopEccentricAngle: f64,
-    dCouchVrt: f64,
-    dCouchLng: f64,
-    dCouchLat: f64,
-    dIDUResolutionX: f64,
-    dIDUResolutionY: f64,
-    dImageResolutionX: f64,
-    dImageResolutionY: f64,
-    dEnergy: f64,
-    dDoseRate: f64,
-    dXRayKV: f64,
-    dXRayMA: f64,
-    dMetersetExposure: f64,
-    dAcqAdjustment: f64,
-    dCTProjectionAngle: f64,
-    dCTNormChamber: f64,
-    dGatingTimeTag: f64,
-    dGating4DInfoX: f64,
-    dGating4DInfoY: f64,
-    dGating4DInfoZ: f64,
-    dGating4DInfoTime: f64,
+    pub sFileType: String, //[u8; 32],
+    pub FileLength: u32,
+    pub chasChecksumSpec: String, //[u8; 4],
+    pub nCheckSum: u32,
+    pub sCreationDate: String, //[u8; 8],
+    pub sCreationTime: String, //[u8; 8],
+    pub sPatientID: String,    //[u8; 16],
+    pub nPatientSer: u32,
+    pub sSeriesID: String, //[u8; 16],
+    pub nSeriesSer: u32,
+    pub sSliceID: String, //[u8; 16],
+    pub nSliceSer: u32,
+    pub SizeX: u32,
+    pub SizeY: u32,
+    pub dSliceZPos: f64,
+    pub sModality: String, //[u8; 16],
+    pub nWindow: u32,
+    pub nLevel: u32,
+    pub nPixelOffset: u32,
+    pub sImageType: String, //[u8; 4],
+    pub dGantryRtn: f64,
+    pub dSAD: f64,
+    pub dSFD: f64,
+    pub dCollX1: f64,
+    pub dCollX2: f64,
+    pub dCollY1: f64,
+    pub dCollY2: f64,
+    pub dCollRtn: f64,
+    pub dFieldX: f64,
+    pub dFieldY: f64,
+    pub dBladeX1: f64,
+    pub dBladeX2: f64,
+    pub dBladeY1: f64,
+    pub dBladeY2: f64,
+    pub dIDUPosLng: f64,
+    pub dIDUPosLat: f64,
+    pub dIDUPosVrt: f64,
+    pub dIDUPosRtn: f64,
+    pub dPatientSupportAngle: f64,
+    pub dTableTopEccentricAngle: f64,
+    pub dCouchVrt: f64,
+    pub dCouchLng: f64,
+    pub dCouchLat: f64,
+    pub dIDUResolutionX: f64,
+    pub dIDUResolutionY: f64,
+    pub dImageResolutionX: f64,
+    pub dImageResolutionY: f64,
+    pub dEnergy: f64,
+    pub dDoseRate: f64,
+    pub dXRayKV: f64,
+    pub dXRayMA: f64,
+    pub dMetersetExposure: f64,
+    pub dAcqAdjustment: f64,
+    pub dCTProjectionAngle: f64,
+    pub dCTNormChamber: f64,
+    pub dGatingTimeTag: f64,
+    pub dGating4DInfoX: f64,
+    pub dGating4DInfoY: f64,
+    pub dGating4DInfoZ: f64,
+    pub dGating4DInfoTime: f64,
 }
 
 struct Buf {
@@ -172,6 +172,12 @@ type hnd_header_raw_t = [u8; 1024];
 type hnd_data_t = Vec<u8>;
 
 impl hnd_header_t {
+    pub fn new() -> hnd_header_t {
+        hnd_header_t {
+            ..Default::default()
+        }
+    }
+
     pub fn to_raw(&self) -> hnd_header_raw_t {
         let mut buf = Buf::new();
 
@@ -342,10 +348,6 @@ impl<T> Size2D for RawImage<T> {
     fn height(&self) -> usize {
         self.height
     }
-}
-
-trait HndEncode {
-    fn encode(&self, width: usize, heidht: usize) -> Result<hnd_data_t, ImageConvError>;
 }
 
 impl std::fmt::Display for hnd_header_t {
@@ -609,7 +611,11 @@ fn compress_data_impl(hnd_data: &mut Vec<u8>, diff: i64, lut_off: &mut usize, lu
     }
 }
 
-fn encode_u32(img: &Vec<u32>, width: usize, height: usize) -> Result<hnd_data_t, ImageConvError> {
+pub fn encode_u32(
+    img: &Vec<u32>,
+    width: usize,
+    height: usize,
+) -> Result<hnd_data_t, ImageConvError> {
     // Initialize the hnd_data_t structure
     const pixel_size: usize = mem::size_of::<u32>();
     let lut_size: usize = (height - 1) * width / 4;
@@ -638,7 +644,11 @@ fn encode_u32(img: &Vec<u32>, width: usize, height: usize) -> Result<hnd_data_t,
     Ok(hnd_data)
 }
 
-fn encode_u16(img: &Vec<u16>, width: usize, height: usize) -> Result<hnd_data_t, ImageConvError> {
+pub fn encode_u16(
+    img: &Vec<u16>,
+    width: usize,
+    height: usize,
+) -> Result<hnd_data_t, ImageConvError> {
     // Initialize the hnd_data_t structure
     const pixel_size: usize = mem::size_of::<u16>();
     let lut_size: usize = (height - 1) * width / 4;
@@ -740,7 +750,9 @@ pub fn read_file(f: &mut File) -> Result<HndImage, io::Error> {
 }
 
 pub fn write_file(f: &mut File, hnd: &HndImage) -> Result<(), io::Error> {
-    //let raw_header: hnd_header_raw_t = hnd.header.into();
+    let raw_header: hnd_header_raw_t = hnd.header.to_raw();
+    f.write(&raw_header)?;
+    f.write(hnd.data.as_ref())?;
     Ok(())
 }
 
@@ -826,11 +838,17 @@ mod tests {
         let mut f_raw = std::fs::File::open(raw_file_1).unwrap();
 
         // Read in the raw data
-        let mut raw_vec_u32: Vec<u32> = Vec::with_capacity(1024 * 768);
-        let mut buf: [u8; 4] = [0; 4];
-        while f_raw.read(&mut buf).unwrap() != 0 {
-            let v = u32::from_ne_bytes(buf[..].try_into().unwrap());
-            raw_vec_u32.push(v);
+        // let mut raw_vec_u32: Vec<u32> = Vec::with_capacity(1024 * 768);
+        // let mut buf: [u8; 4] = [0; 4];
+        // while f_raw.read(&mut buf).unwrap() != 0 {
+        //     let v = u32::from_ne_bytes(buf[..].try_into().unwrap());
+        //     raw_vec_u32.push(v);
+        // }
+        let mut raw_vec_u32: Vec<u32>;
+        let mut buf: Vec<u8> = Vec::new();
+        f_raw.read_to_end(&mut buf).unwrap();
+        unsafe {
+            raw_vec_u32 = std::mem::transmute(buf);
         }
 
         // endcode the raw 32 bits data

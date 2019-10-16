@@ -1,8 +1,10 @@
-use std::env;
+use std::convert::{From, Into, TryFrom, TryInto};
 use std::error::Error;
-use std::fs::File;
-use std::fs::OpenOptions;
-// use std::io::{BufReader, Read};
+use std::fs::{File, OpenOptions};
+use std::io;
+use std::io::{BufReader, Read, Seek, SeekFrom, Write};
+use std::mem;
+use std::str::FromStr;
 
 #[macro_use]
 extern crate clap;
@@ -31,7 +33,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             (@arg input: +required "Sets the input file")
             (@arg output: +required "Sets the output file")
             (@arg width: -w --width <INT> +required +takes_value "Width of the image")
-            (@arg width: -h --height <INT> +required +takes_value "Height of the image"))
+            (@arg height: -h --height <INT> +required +takes_value "Height of the image")
+            (@arg x_res: --x_res [DOUBLE] +takes_value "X resolution")
+            (@arg y_res: --y_res [DOUBLE] +takes_value "Y resolution")
+            (@arg angel: -a --angle [DOUBLE] +takes_value "Projection angle in degree")
+            (@arg n_bytes: -b --bytes <SHORT> +takes_value "Bytes per pixel"))
     )
     .get_matches();
 
@@ -43,7 +49,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         hnd::print_header(&mut f)?;
     } else if let Some(matches) = matches.subcommand_matches("test") {
         println!("handling test subcommand!");
-    } else if let Some(matches) = matches.subcommand_matches("convert") {
+    } else if let Some(matches) = matches.subcommand_matches("conv") {
         let input = matches.value_of("input").unwrap();
         let mut fin = File::open(input)?;
 
@@ -55,6 +61,65 @@ fn main() -> Result<(), Box<dyn Error>> {
             .open(output)?;
 
         hnd::convert_to_raw(&mut fin, &mut fout)?;
+    } else if let Some(matches) = matches.subcommand_matches("raw") {
+        let arg_usize = |x: &str| usize::from_str_radix(matches.value_of(x).unwrap(), 10).unwrap();
+
+        let arg_u32 = |x| u32::from_str_radix(matches.value_of(x).unwrap(), 10).unwrap();
+        let arg_i64 =
+            |x: &str| -> i64 { i64::from_str_radix(matches.value_of(x).unwrap(), 10).unwrap() };
+        let arg_f64 = |x| f64::from_str(matches.value_of(x).unwrap()).unwrap();
+
+        let input = matches.value_of("input").unwrap();
+        let mut fin = File::open(input)?;
+        let output = matches.value_of("output").unwrap();
+        let mut fout = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .create(true)
+            .open(output)?;
+
+        let mut hnd_header = hnd::hnd_header_t::new();
+        let width = arg_usize("width");
+        let height = arg_usize("height");
+        hnd_header.SizeX = width as u32;
+        hnd_header.SizeY = height as u32;
+        if matches.is_present("x_res") {
+            let x_res = arg_f64("x_res");
+            println!("Read in x_res: {} ...OK", x_res);
+            hnd_header.dImageResolutionX = x_res;
+        }
+        if matches.is_present("y_res") {
+            let y_res = arg_f64("y_res");
+            println!("Read in y_res: {} ...OK", y_res);
+            hnd_header.dImageResolutionY = y_res;
+        }
+        if matches.is_present("angle") {
+            let angle = arg_f64("angle");
+            println!("Read in angle: {} ...OK", angle);
+            hnd_header.dCTProjectionAngle = angle;
+        }
+        let mut n_bytes: u32 = arg_u32("n_bytes");
+        println!("Read in n_bytes: {} ...OK", n_bytes);
+
+        let mut buf: Vec<u8> = Vec::new();
+        fin.read_to_end(&mut buf)?;
+        match n_bytes {
+            2 => {
+                let mut raw_image: Vec<u16> = unsafe { std::mem::transmute(buf) };
+                let hnd_data = hnd::encode_u16(&raw_image, width, height).unwrap();
+                fout.write(&hnd_header.to_raw())?;
+                fout.write(&hnd_data);
+            }
+            4 => {
+                let mut raw_image: Vec<u32> = unsafe { std::mem::transmute(buf) };
+                let hnd_data = hnd::encode_u32(&raw_image, width, height).unwrap();
+                fout.write(&hnd_header.to_raw())?;
+                fout.write(&hnd_data);
+            }
+            _ => {
+                panic!("shouldn't be here.");
+            }
+        }
     }
 
     // let args: Vec<_> = env::args().collect();
