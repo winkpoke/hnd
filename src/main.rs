@@ -10,7 +10,7 @@ use std::str::FromStr;
 extern crate clap;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let matches = clap_app!(myapp =>
+    let matches = clap_app!(hnd =>
         (version: "0.1")
         (author: "Phil C. <chen.weihai@gmail.com>")
         (about: "Handle Varian .HND files.")
@@ -56,7 +56,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let output = matches.value_of("output").unwrap();
         let mut fout = OpenOptions::new()
             .write(true)
-            .append(true)
+            .append(false)
             .create(true)
             .open(output)?;
 
@@ -74,7 +74,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let output = matches.value_of("output").unwrap();
         let mut fout = OpenOptions::new()
             .write(true)
-            .append(true)
+            .append(false)
             .create(true)
             .open(output)?;
 

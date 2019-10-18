@@ -7,7 +7,7 @@ use std::io;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::mem;
 
-pub mod header;
+// pub mod header;
 
 const RAWMEMDATA_DEFAULT_SIZE: usize = 1024;
 struct RawMemData {
@@ -778,7 +778,7 @@ pub fn convert_to_raw(fin: &mut File, fout: &mut File) -> Result<(), io::Error> 
 
     // let hnd_data: Vec<u32> = unsafe { std::mem::transmute(hnd_data_buf) };
     let mut raw_image = decode(&hnd_data_buf, width, height).unwrap();
-    print!("{} ", raw_image.len());
+    // print!("{} ", raw_image.len());
     let raw_image_buf: Vec<u8> = unsafe {
         Vec::from_raw_parts(
             raw_image.as_mut_ptr() as *mut u8,
