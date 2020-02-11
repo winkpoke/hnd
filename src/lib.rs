@@ -669,7 +669,7 @@ pub fn encode_u16(
     // Copy the first line and first pixel of the second line of the raw image
     img[..(width + 1)]
         .iter()
-        .for_each(|x| x.to_ne_bytes().iter().for_each(|x| hnd_data.push(*x)));
+        .for_each(|x| (*x as u32).to_ne_bytes().iter().for_each(|x| hnd_data.push(*x)));
 
     // Go through the rest of the pixels and encode into hnd format
     let mut lut_off: usize = 0;

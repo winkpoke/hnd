@@ -36,8 +36,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             (@arg height: -h --height <INT> +required +takes_value "Height of the image")
             (@arg x_res: --x_res [DOUBLE] +takes_value "X resolution")
             (@arg y_res: --y_res [DOUBLE] +takes_value "Y resolution")
-            (@arg angel: -a --angle [DOUBLE] +takes_value "Projection angle in degree")
-            (@arg n_bytes: -b --bytes <SHORT> +takes_value "Bytes per pixel"))
+            (@arg angle: -a --angle [DOUBLE] +takes_value "Projection angle in degree")
+            (@arg n_bytes: -b --bytes <SHORT> +takes_value "Bytes per pixel")
+            //(@arg n_images: -n <INT> -required +takes_value "number of images in the input file")
+        )
     )
     .get_matches();
 
@@ -71,6 +73,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         let input = matches.value_of("input").unwrap();
         let mut fin = File::open(input)?;
+        let metadata = fin.metadata()?;
         let output = matches.value_of("output").unwrap();
         let mut fout = OpenOptions::new()
             .write(true)
@@ -87,11 +90,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             let x_res = arg_f64("x_res");
             println!("Read in x_res: {} ...OK", x_res);
             hnd_header.dImageResolutionX = x_res;
+            hnd_header.dIDUResolutionX = x_res;
         }
         if matches.is_present("y_res") {
             let y_res = arg_f64("y_res");
             println!("Read in y_res: {} ...OK", y_res);
             hnd_header.dImageResolutionY = y_res;
+            hnd_header.dIDUResolutionY = y_res;
         }
         if matches.is_present("angle") {
             let angle = arg_f64("angle");
@@ -99,7 +104,17 @@ fn main() -> Result<(), Box<dyn Error>> {
             hnd_header.dCTProjectionAngle = angle;
         }
         let mut n_bytes: u32 = arg_u32("n_bytes");
-        println!("Read in n_bytes: {} ...OK", n_bytes);
+        // let n_images = 
+        //     if matches.is_present("n_images") {
+        //         arg_u32("n_images")
+        //     } else {
+        //         1
+        //     };
+        // println!("Read in n_images: {} ...OK", n_images);
+        // let input_file_size = width * height * n_bytes as usize * n_images as usize;
+        // if input_file_size != metadata.len() as usize {
+        //     panic!("fatal error: width * height * nbytes * n_images is not equal file size.");
+        // }
 
         let mut buf: Vec<u8> = Vec::new();
         fin.read_to_end(&mut buf)?;
