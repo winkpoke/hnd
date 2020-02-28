@@ -120,13 +120,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             2 => {
                 let mut raw_image: Vec<u16> = unsafe { std::mem::transmute(buf) };
                 let hnd_data = hnd::encode_u16(&raw_image, width, height).unwrap();
-                fout.write(&hnd_header.to_raw())?;
+                fout.write(&hnd_header.to_slice_buf())?;
                 fout.write(&hnd_data);
             }
             4 => {
                 let mut raw_image: Vec<u32> = unsafe { std::mem::transmute(buf) };
                 let hnd_data = hnd::encode_u32(&raw_image, width, height).unwrap();
-                fout.write(&hnd_header.to_raw())?;
+                fout.write(&hnd_header.to_slice_buf())?;
                 fout.write(&hnd_data);
             }
             _ => {
