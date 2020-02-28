@@ -5,9 +5,7 @@ use std::io;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::mem;
 use std::str::FromStr;
-
-#[macro_use]
-extern crate clap;
+use clap::clap_app;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let matches = clap_app!(hnd =>
