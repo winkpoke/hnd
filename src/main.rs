@@ -6,6 +6,7 @@ use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::mem;
 use std::str::FromStr;
 use clap::clap_app;
+use hnd;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let matches = clap_app!(hnd =>
@@ -101,7 +102,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             println!("Read in angle: {} ...OK", angle);
             hnd_header.dCTProjectionAngle = angle;
         }
-        let mut n_bytes: u32 = arg_u32("n_bytes");
+        let n_bytes: u32 = arg_u32("n_bytes");
         // let n_images = 
         //     if matches.is_present("n_images") {
         //         arg_u32("n_images")
@@ -118,27 +119,25 @@ fn main() -> Result<(), Box<dyn Error>> {
         fin.read_to_end(&mut buf)?;
         match n_bytes {
             2 => {
-                let mut raw_image: Vec<u16> = unsafe { std::mem::transmute(buf) };
+                buf.shrink_to_fit();
+                let len = buf.len() / 2;
+                let raw_image = unsafe{ Vec::<u16>::from_raw_parts(buf.as_mut_ptr() as *mut u16, len, len) };
+                std::mem::forget(buf);
                 let hnd_data = hnd::encode_u16(&raw_image, width, height).unwrap();
-                fout.write(&hnd_header.to_slice_buf())?;
-                fout.write(&hnd_data);
+                fout.write(&hnd_header.to_raw())?;
+                fout.write(&hnd_data)?;
             }
             4 => {
                 let mut raw_image: Vec<u32> = unsafe { std::mem::transmute(buf) };
                 let hnd_data = hnd::encode_u32(&raw_image, width, height).unwrap();
-                fout.write(&hnd_header.to_slice_buf())?;
-                fout.write(&hnd_data);
+                fout.write(&hnd_header.to_raw())?;
+                fout.write(&hnd_data)?;
             }
             _ => {
                 panic!("shouldn't be here.");
             }
         }
     }
-
-    // let args: Vec<_> = env::args().collect();
-    // if args.len() > 1 {
-    //     println!("The first argument is {}", args[1]);
-    // }
 
     Ok(())
 }

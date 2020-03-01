@@ -65,7 +65,15 @@ pub struct hnd_header_t {
     pub dGating4DInfoTime: f64,
 }
 
-pub type hnd_header_buf_t = [u8; 1024];
+// pub type hnd_header_buf_t = [u8; 1024];
+pub type hnd_header_buf_t = Vec<u8>;
+pub type hnd_data_t = Vec<u8>;
+
+#[derive(Default)]
+struct hnd_t {
+    header: hnd_header_t,
+    data: hnd_data_t
+}
 
 impl hnd_header_t {
     pub fn new() -> hnd_header_t {
@@ -74,7 +82,7 @@ impl hnd_header_t {
         }
     }
  
-    pub fn to_slice_buf(&self) -> hnd_header_buf_t {
+    pub fn to_raw(&self) -> hnd_header_buf_t {
         let mut buf = Buf::new();
 
         // iter!(String, buf_iter, self.sFileType, 32);
@@ -139,14 +147,15 @@ impl hnd_header_t {
         buf.write_f64(self.dGating4DInfoZ);
         buf.write_f64(self.dGating4DInfoTime);
         // );
-        let mut array: [u8; 1024] = [0; 1024];
-        array.copy_from_slice(&buf.data[0..1024]);
-        array
+        // let mut array: [u8; 1024] = [0; 1024];
+        // array.copy_from_slice(&buf.data[0..1024]);
+        // array
+        buf.data
     }
 
-    pub fn from_slice_buf(raw_header: &hnd_header_buf_t) -> hnd_header_t {
-        let mut pos: usize = 0;
-        let mut buf = Buf::from(&raw_header[..1024]);
+    pub fn from_raw(raw_header: hnd_header_buf_t) -> hnd_header_t {
+        // let mut pos: usize = 0;
+        let mut buf = Buf::from(raw_header);
         hnd_header_t {
             sFileType: buf.read_string(32),
             FileLength: buf.read_u32(),
@@ -298,10 +307,16 @@ impl Buf {
         Self { data: data, pos: 0 }
     }
 
-    fn from(d: &[u8]) -> Self {
-        let mut data = Vec::<u8>::new();
-        data.extend_from_slice(d);
-        Self { data: data, pos: 0 }
+    // fn from(d: &[u8]) -> Self {
+    //     let mut data = Vec::<u8>::new();
+    //     data.extend_from_slice(d);
+    //     Self { data: data, pos: 0 }
+    // }
+
+    fn from(d: Vec<u8>) -> Self {
+        // let mut data = Vec::<u8>::new();
+        // data.extend_from_slice(d);
+        Self { data: d, pos: 0 }
     }
 
     fn read_string(&mut self, size: usize) -> String {
@@ -359,3 +374,284 @@ impl Buf {
         self.pos += size;
     }
 }
+
+#[derive(Debug)]
+pub enum ImageConvError {
+    SomeErr,
+}
+
+// decode HND image data into raw image data
+
+struct LutIter<'a> {
+    table: &'a [u8],
+    size: usize,
+    pos: usize,
+    idx: usize,
+    offset: usize,
+}
+
+impl<'a> LutIter<'a> {
+    fn new(part: &'a [u8], size: usize) -> LutIter<'a> {
+        LutIter {
+            table: part,
+            size: size,
+            pos: 0,
+            idx: 0,
+            offset: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for LutIter<'a> {
+    type Item = u8;
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos < self.size {
+            self.pos += 1;
+            let v = match self.offset {
+                0 => {
+                    self.offset += 1;
+                    self.table[self.idx] & 0x03
+                }
+                1 => {
+                    self.offset += 1;
+                    (self.table[self.idx] & 0x0c) >> 2
+                }
+                2 => {
+                    self.offset += 1;
+                    (self.table[self.idx] & 0x30) >> 4
+                }
+                3 => {
+                    self.offset = 0;
+                    let idx = self.idx;
+                    self.idx += 1;
+                    (self.table[idx] & 0xc0) >> 6
+                }
+                _ => {
+                    panic!("cannot reach here!");
+                }
+            };
+            Some(v)
+        } else {
+            None
+        }
+    }
+}
+
+pub fn decode(raw: &Vec<u8>, width: usize, height: usize) -> Result<Vec<u32>, ImageConvError> {
+    let mut output = Vec::with_capacity(width * height * 4);
+
+    // Read LUT
+    let lut_begin = 0;
+    let lut_len = width * (height - 1) / 4;
+    let lut_end = lut_begin + lut_len;
+    let lut = &raw[lut_begin..lut_end];
+
+    // first Row and the first pixel of the second row are uncompressed data,
+    // which can be copied to output directly.
+    let mut pos = lut_end + (width + 1) * 4;
+    for i in (lut_end..pos).step_by(4) {
+        let start = i;
+        let end = start + 4;
+        let v = u32::from_ne_bytes(raw[start..end].try_into().unwrap());
+        output.push(v);
+    }
+
+    let lut_size = width * (height - 1) - 1;
+    let mut lut_iter = LutIter::new(&lut, lut_size);
+
+    // Decompress the rest
+    let mut i = width + 1;
+    while i < width * height {
+        let v = lut_iter.next();
+        let r11 = output[i - width - 1];
+        let r12 = output[i - width];
+        let r21 = output[i - 1];
+
+        let start = pos;
+        let diff: i32 = match v {
+            Some(0) => {
+                let end = start + 1;
+                pos += 1;
+                i8::from_ne_bytes(raw[start..end].try_into().unwrap()).into()
+            }
+            Some(1) => {
+                let end = start + 2;
+                pos += 2;
+                i16::from_ne_bytes(raw[start..end].try_into().unwrap()).into()
+            }
+            Some(2) => {
+                let end = start + 4;
+                pos += 4;
+                i32::from_ne_bytes(raw[start..end].try_into().unwrap()).into()
+            }
+            None => {
+                break;
+            }
+            _ => {
+                panic!("cannot reach here!");
+            }
+        };
+        // println!(
+        //   "lut[idx] = {} lut = {} i = {} r12 = {} r21 = {} r11 = {} diff = {}",
+        //    lut[lut_idx], v, i, r12, r21, r11, diff
+        // );
+        let pixel_value: u32 = (r12 as i64 + r21 as i64 - r11 as i64 + diff as i64)
+            .try_into()
+            .unwrap();
+        output.push(pixel_value);
+        i += 1;
+    }
+
+    Ok(output)
+}
+
+
+// encode raw image data into HND image data
+fn compress_data_impl(hnd_data: &mut Vec<u8>, diff: i64, lut_off: &mut usize, lut_idx: &mut usize) {
+    let mut v: u8 = 0;
+    if diff >= i8::min_value().into() && diff <= i8::max_value().into() {
+        (diff as i8)
+            .to_ne_bytes()
+            .iter()
+            .for_each(|x| hnd_data.push(*x));
+        v = 0;
+    } else if diff >= i16::min_value().into() && diff <= i16::max_value().into() {
+        (diff as i16)
+            .to_ne_bytes()
+            .iter()
+            .for_each(|x| hnd_data.push(*x));
+        v = 1;
+    } else if diff >= i32::min_value().into() && diff <= i32::max_value().into() {
+        (diff as i32)
+            .to_ne_bytes()
+            .iter()
+            .for_each(|x| hnd_data.push(*x));
+        v = 2;
+    } else {
+        panic!("shouldn't get here!");
+    }
+
+    // append the v value to the LUT table
+    match lut_off {
+        0 => {
+            hnd_data[*lut_idx] = v;
+            *lut_off += 1;
+        }
+        1 => {
+            hnd_data[*lut_idx] |= v << 2;
+            *lut_off += 1;
+        }
+        2 => {
+            hnd_data[*lut_idx] |= v << 4;
+            *lut_off += 1;
+        }
+        3 => {
+            hnd_data[*lut_idx] |= v << 6;
+            *lut_off = 0;
+            *lut_idx += 1;
+        }
+        _ => {
+            panic!("shouldn't get here!");
+        }
+    }
+}
+
+pub fn encode_u32(
+    img: &Vec<u32>,
+    width: usize,
+    height: usize,
+) -> Result<Vec<u8>, ImageConvError> {
+    // Initialize the hnd_data_t structure
+    const PIXEL_SIZE: usize = std::mem::size_of::<u32>();
+    let lut_size: usize = (height - 1) * width / 4;
+    let mut hnd_data: Vec<u8> = Vec::with_capacity(width * height * PIXEL_SIZE + lut_size);
+
+    // LUT
+    hnd_data.resize(lut_size, 0);
+
+    // Copy the first line and first pixel of the second line of the raw image
+    img[..(width + 1)]
+        .iter()
+        .for_each(|x| x.to_ne_bytes().iter().for_each(|x| hnd_data.push(*x)));
+
+    // Go through the rest of the pixels and encode into hnd format
+    let mut lut_off: usize = 0;
+    let mut lut_idx: usize = 0;
+    for i in (width + 1)..(width * height) {
+        let r11 = img[i - width - 1];
+        let r12 = img[i - width];
+        let r21 = img[i - 1];
+        // println!("{} {} {} {} {}", i, img[1], r11, r21, r12);
+        let diff: i64 = img[i] as i64 + r11 as i64 - r21 as i64 - r12 as i64;
+        compress_data_impl(&mut hnd_data, diff, &mut lut_off, &mut lut_idx);
+    }
+
+    Ok(hnd_data)
+}
+
+pub fn encode_u16(
+    img: &Vec<u16>,
+    width: usize,
+    height: usize,
+) -> Result<Vec<u8>, ImageConvError> {
+    // Initialize the hnd_data_t structure
+    const PIXEL_SIZE: usize = std::mem::size_of::<u16>();
+    let lut_size: usize = (height - 1) * width / 4;
+    let mut hnd_data: Vec<u8> = Vec::with_capacity(width * height * PIXEL_SIZE + lut_size);
+
+    // LUT
+    hnd_data.resize(lut_size, 0);
+
+    // Copy the first line and first pixel of the second line of the raw image
+    img[..(width + 1)]
+        .iter()
+        .for_each(|x| (*x as u32).to_ne_bytes().iter().for_each(|x| hnd_data.push(*x)));
+
+    // Go through the rest of the pixels and encode into hnd format
+    let mut lut_off: usize = 0;
+    let mut lut_idx: usize = 0;
+    for i in (width + 1)..(width * height) {
+        let r11 = img[i - width - 1];
+        let r12 = img[i - width];
+        let r21 = img[i - 1];
+        // println!("{} {} {} {} {}", i, img[1], r11, r21, r12);
+        let diff: i64 = img[i] as i64 + r11 as i64 - r21 as i64 - r12 as i64;
+
+        compress_data_impl(&mut hnd_data, diff, &mut lut_off, &mut lut_idx);
+    }
+    Ok(hnd_data)
+}
+
+impl hnd_t {
+    pub fn new(header: hnd_header_t, data: Vec<u8>) -> hnd_t {
+        hnd_t {
+            header: header,
+            data: data
+        }
+    }
+
+    pub fn width(&self) -> usize {
+        self.header.SizeX as usize
+    }
+
+    pub fn height(&self) -> usize {
+        self.header.SizeY as usize
+    }
+
+    pub fn to_raw(&self) -> Vec<u8> {
+        vec![1, 2 , 3]
+    }
+
+    pub fn from_raw(raw_data: Vec<u8>, width: usize, height: usize) -> hnd_t {
+        hnd_t {
+            ..Default::default()
+        }
+    }
+
+}
+
+
+// extern "C" pub fn build_raw_hnd
+
+// pub fn init()
